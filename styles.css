@@ -129,22 +129,33 @@ button, input, textarea { font-family: 'Nunito', system-ui, -apple-system, sans-
 /* кішечка на головному екрані */
 .cat-stage { position: relative; height: 112px; margin: 2px 0; }
 .cat-stage::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 5px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #f3b5cc, transparent); }
-.kitty { position: absolute; left: 0; bottom: 0; width: 120px; height: 110px; cursor: pointer; will-change: transform; z-index: 1; }
+.kitty { position: absolute; left: 0; bottom: 0; width: 158px; height: 110px; cursor: pointer; will-change: transform; z-index: 1; }
 .kitty .pose { position: absolute; inset: 0; transition: opacity .35s, transform .35s; }
-.kitty .side svg { position: absolute; bottom: 0; left: 0; width: 120px; height: auto; transition: transform .25s; }
-.kitty .front svg { position: absolute; bottom: 0; left: 14px; width: 92px; height: auto; }
+.kitty .side svg { position: absolute; bottom: 2px; left: 0; width: 158px; height: auto; transition: transform .25s; }
+.kitty .front svg { position: absolute; bottom: 0; left: 37px; width: 84px; height: auto; }
 .kitty .front { opacity: 0; transform: scale(.92); transform-origin: 50% 100%; }
 .kitty.look .side, .kitty.purr .side { opacity: 0; }
 .kitty.look .front, .kitty.purr .front { opacity: 1; transform: none; }
 .kitty[data-dir="-1"] .side svg { transform: scaleX(-1); }
-.kitty .leg { transform-box: fill-box; transform-origin: 50% 0; }
-.kitty.walk .leg { animation: catSwing .7s ease-in-out infinite; }
-.kitty.walk .leg.lb { animation-delay: -.35s; }
-@keyframes catSwing { 0%, 100% { transform: rotate(-17deg); } 50% { transform: rotate(17deg); } }
-.kitty.walk .c-head { animation: catBob .35s ease-in-out infinite; }
-@keyframes catBob { 50% { transform: translateY(1.5px); } }
-.c-tail { transform-box: fill-box; transform-origin: 100% 100%; animation: catTail 1.6s ease-in-out infinite; }
-@keyframes catTail { 50% { transform: rotate(10deg); } }
+/* хода: ноги з суглобами, порядок лап як у справжньої кішки (ЛЗ, ЛП, ПЗ, ПП) */
+.cat-side .up, .cat-side .lo, .c-torso, .c-head, .c-tail { transform-box: view-box; }
+.kitty.walk .hind .up { animation: hindUp .9s linear infinite; }
+.kitty.walk .hind .lo { animation: hindLo .9s linear infinite; }
+.kitty.walk .fore .up { animation: foreUp .9s linear infinite; }
+.kitty.walk .fore .lo { animation: foreLo .9s linear infinite; }
+.kitty.walk .lf1 .up, .kitty.walk .lf1 .lo { animation-delay: -.225s; }
+.kitty.walk .lh2 .up, .kitty.walk .lh2 .lo { animation-delay: -.45s; }
+.kitty.walk .lf2 .up, .kitty.walk .lf2 .lo { animation-delay: -.675s; }
+@keyframes hindUp { 0% { transform: rotate(-15deg); } 62% { transform: rotate(17deg); } 80% { transform: rotate(2deg); } 100% { transform: rotate(-15deg); } }
+@keyframes hindLo { 0%, 60% { transform: rotate(0); } 72% { transform: rotate(30deg); } 88% { transform: rotate(8deg); } 100% { transform: rotate(0); } }
+@keyframes foreUp { 0% { transform: rotate(-13deg); } 62% { transform: rotate(15deg); } 80% { transform: rotate(0); } 100% { transform: rotate(-13deg); } }
+@keyframes foreLo { 0%, 60% { transform: rotate(0); } 70% { transform: rotate(42deg); } 86% { transform: rotate(10deg); } 100% { transform: rotate(0); } }
+.kitty.walk .c-torso { animation: catSway .45s ease-in-out infinite; transform-origin: 100px 62px; }
+@keyframes catSway { 50% { transform: translateY(1.2px) rotate(.6deg); } }
+.kitty.walk .c-head { animation: catHead .45s ease-in-out infinite; transform-origin: 150px 50px; }
+@keyframes catHead { 50% { transform: translateY(.8px) rotate(-1deg); } }
+.c-tail { transform-origin: 44px 58px; animation: catTail 1.8s ease-in-out infinite; }
+@keyframes catTail { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(9deg); } }
 .c-tail2 { transform-box: fill-box; transform-origin: 0 100%; animation: catTail2 2.4s ease-in-out infinite; }
 @keyframes catTail2 { 50% { transform: rotate(-14deg); } }
 .eyes-closed { opacity: 0; } .kitty.purr .eyes-closed { opacity: 1; } .kitty.purr .eyes-open { opacity: 0; }
@@ -156,8 +167,8 @@ button, input, textarea { font-family: 'Nunito', system-ui, -apple-system, sans-
 .c-face { transform-box: fill-box; transform-origin: 50% 85%; }
 .kitty.look .c-face { animation: catTilt 2.2s ease-in-out infinite; }
 @keyframes catTilt { 50% { transform: rotate(-7deg); } }
-.bubble { position: absolute; left: 78px; top: -4px; background: #fff; color: var(--deep); font: 800 13px 'Nunito', system-ui, sans-serif; padding: 6px 10px; border-radius: 14px 14px 14px 4px; box-shadow: 0 4px 12px #d4588a33; opacity: 0; transform: translateY(6px) scale(.9); transition: .3s; white-space: nowrap; pointer-events: none; }
-.kitty[data-side="r"] .bubble { left: auto; right: 78px; border-radius: 14px 14px 4px 14px; }
+.bubble { position: absolute; left: 96px; top: -4px; background: #fff; color: var(--deep); font: 800 13px 'Nunito', system-ui, sans-serif; padding: 6px 10px; border-radius: 14px 14px 14px 4px; box-shadow: 0 4px 12px #d4588a33; opacity: 0; transform: translateY(6px) scale(.9); transition: .3s; white-space: nowrap; pointer-events: none; }
+.kitty[data-side="r"] .bubble { left: auto; right: 96px; border-radius: 14px 14px 4px 14px; }
 .kitty.purr .bubble { opacity: 1; transform: none; }
 .pet-heart { position: absolute; bottom: 60px; color: var(--pink); font-size: 18px; pointer-events: none; animation: catHeart 1.6s ease-out forwards; z-index: 2; }
 @keyframes catHeart { from { transform: translateY(0) scale(.6); opacity: 1; } to { transform: translateY(-70px) scale(1.2); opacity: 0; } }
