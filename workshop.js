@@ -99,9 +99,22 @@ function artStatus(d) {
 const myTurn = (d) => d.status !== 'done' && (
   (['guess'].includes(d.status) && d.to === me()) || (['grade'].includes(d.status) && d.by === me()) ||
   (d.status === 's2' && d.to === me()) || (d.status === 's3' && d.by === me()) || (d.status === 'draw' && d.to === me()) || (d.status === 'rate' && d.by === me()));
-export const pendingArt = () => Object.values(S().art).filter(myTurn).length + Object.values(S().live).filter((l) => l.guesser === me() && l.status === 'invited').length;
+export const pendingArt = () => !wsUnlocked().ok ? 0 : Object.values(S().art).filter(myTurn).length + Object.values(S().live).filter((l) => l.guesser === me() && l.status === 'invited').length;
 
-export function renderWorkshop() {
+// ---------- доступ: з рангу «Котик-романтик» в обох ----------
+export const WS_UNLOCK = 1200;
+export function wsUnlocked() {
+  const t = A.totals().all, p = A.pUid();
+  return { ok: !!p && (t[me()] || 0) >= WS_UNLOCK && (t[p] || 0) >= WS_UNLOCK, mine: t[me()] || 0, his: p ? t[p] || 0 : 0 };
+}
+function lockScreen() {
+  const u = wsUnlocked(), row = (n, v) => `<div class="lockrow"><b>${esc(n)}</b><div class="bar"><i style="width:${Math.min(100, (v / WS_UNLOCK) * 100)}%"></i></div>${v}/${WS_UNLOCK}</div>`;
+  A.app.innerHTML = `<div class="page">${A.top('Творча майстерня')}<div class="card center">${A.catSVG(90)}<h3>Відкривається з рангу «Котик-романтик» 💌</h3>
+    <p class="muted">Обом гравцям потрібно щонайменше ${WS_UNLOCK} балів.</p>${row('Ти', u.mine)}${row(A.nameOf(A.pUid()), u.his)}</div></div>`;
+}
+const guard = (fn) => (...a) => (wsUnlocked().ok ? fn(...a) : lockScreen());
+
+export const renderWorkshop = guard(function () {
   const list = Object.values(S().art).filter((d) => d.status !== 'done').sort((a, b) => b.at - a.at);
   const lv = Object.values(S().live).filter((l) => l.status !== 'done' && l.status !== 'cancelled');
   A.app.innerHTML = `<div class="page">${A.top('Творча майстерня')}
@@ -111,12 +124,12 @@ export function renderWorkshop() {
     <h3 class="sec">Створити</h3>
     ${ORDER.map((k) => `<div class="card mode-c"><div class="dc-top"><span class="dc-ico">${MODES[k].icon}</span><div><b>${MODES[k].name}</b><div class="muted small">${MODES[k].pts}</div></div></div><p class="small">${MODES[k].desc}</p><button class="btn sm" data-a="artNew" data-m="${k}">Почати</button></div>`).join('')}
   </div>`;
-}
+});
 
 // ---------- створення ----------
 let pad = null, rec = null, media = null;
 export const isEditing = () => !!(pad || rec || S().view === 'artnew');
-export function renderArtNew() {
+export const renderArtNew = guard(function () {
   const m = S().artMode, M = MODES[m], p = A.pUid();
   if (!p) { A.app.innerHTML = `<div class="page">${A.top(M.name)}<p>Потрібен партнер 🙂</p></div>`; return; }
   const head = `<div class="page">${A.top(`${M.icon} ${M.name}`)}<p class="muted small">${M.desc}</p>`;
@@ -129,7 +142,7 @@ export function renderArtNew() {
   else if (m === 'song') { A.app.innerHTML = head + `<div class="card"><div id="recBox"></div><input id="artAns" placeholder="Назва пісні (бачиш лише ти)"></div>${send}</div>`; recorder(document.getElementById('recBox')); }
   else if (m === 'blind') { S().blindSeed = S().blindSeed || Math.floor(Math.random() * 1e6); A.app.innerHTML = head + `<div class="card center">${sceneSVG(S().blindSeed)}<button class="link" data-a="blindNew">Інша картинка</button></div><div class="card"><textarea id="artDesc" rows="4" placeholder="Опиши картинку, не називаючи предмети прямо. Напр.: «угорі ліворуч щось кругле й гаряче…»"></textarea></div>${send}</div>`; }
   else if (m === 'live') { const opts = shuffle(DRAW_WORDS, 'w' + Date.now()).slice(0, 3); A.app.innerHTML = head + `<div class="card center"><p>Обери, що малюватимеш (${esc(A.nameOf(p))} не бачить):</p><div class="chips">${opts.map((w) => `<button class="chip" data-a="liveStart" data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div><p class="muted small">Партнер отримає запрошення. Гра почнеться, коли він(вона) приєднається.</p></div></div>`; }
-}
+});
 
 function recorder(box) {
   rec = { blob: null, url: null, mr: null };
@@ -168,7 +181,7 @@ async function artSend() {
 }
 
 // ---------- відкрите завдання ----------
-export function renderArt() {
+export const renderArt = guard(function () {
   const d = S().art[S().artId]; if (!d) { A.app.innerHTML = `<div class="page">${A.top('Майстерня')}<p>Не знайдено.</p></div>`; return; }
   const M = MODES[d.type], mine = d.by === me(), p = others(d), pn = esc(A.nameOf(p));
   const page = (html) => { A.app.innerHTML = `<div class="page">${A.top(`${M.icon} ${M.name}`)}${html}</div>`; };
@@ -206,7 +219,7 @@ export function renderArt() {
       return loadFull(d);
     }
   }
-}
+});
 function loadFull(d) { A.getDoc(imgRef(d.id)).then((s) => { const el = document.getElementById('artImg'), src = s.data()?.img; if (el && src) el.src = src; }).catch(() => {}); }
 async function cropBottom(src, frac) { const img = await loadImg(src); const c = document.createElement('canvas'); c.width = img.width; c.height = Math.round(img.height * frac); c.getContext('2d').drawImage(img, 0, img.height - c.height, img.width, c.height, 0, 0, c.width, c.height); return c.toDataURL('image/jpeg', 0.8); }
 
@@ -256,7 +269,7 @@ async function liveStart(word) {
   A.notify(p, '✏️ Малюй і вгадуй наживо!', `${A.nameOf(me())} кличе вгадувати малюнок — заходь у Творчу майстерню`);
   S().liveId = id; S().view = 'live'; A.render();
 }
-export function renderLive() {
+export const renderLive = guard(function () {
   const l = S().live[S().liveId]; if (!l) { A.app.innerHTML = `<div class="page">${A.top('Наживо')}<p>Гру не знайдено.</p></div>`; return; }
   const drawer = l.drawer === me(), on = l.status === 'on', left = l.startAt ? Math.max(0, 90 - Math.floor((Date.now() - l.startAt) / 1000)) : 90;
   const top = A.top('✏️ Малюй і вгадуй');
@@ -290,7 +303,7 @@ export function renderLive() {
     const s = Math.max(0, 90 - Math.floor((Date.now() - cur.startAt) / 1000)), el = document.getElementById('lvT'); if (el) el.textContent = s;
     if (s <= 0) { clearInterval(liveTimer); A.updateDoc(liveRef(cur.id), { status: 'done' }).catch(() => {}); }
   }, 500);
-}
+});
 function paintAll(cv, strokes) { if (!cv) return; const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height); for (const s of strokes || []) paint(x, s, cv.width, cv.height); }
 async function pushStrokes() { livePush = 0; const l = S().live[S().liveId]; if (!l || !pad || l.status !== 'on') return; await A.updateDoc(liveRef(l.id), { strokes: pad.strokes.map((s) => ({ c: s.c, w: s.w, p: s.p.slice() })) }).catch(() => {}); }
 async function liveGuess() {
@@ -302,17 +315,17 @@ async function liveGuess() {
     const thumbC = document.getElementById('lvC'); if (thumbC) { const full = thumbC.toDataURL('image/jpeg', 0.8); await A.setDoc(imgRef(l.id), { img: full }); await A.setDoc(artRef(l.id), { type: 'live', by: l.drawer, to: me(), at: l.at, status: 'done', doneAt: Date.now(), answer: l.word, thumb: await thumbOf(full), result: 2, guesses: [{ text: t, v: 2 }] }); }
   } else await A.updateDoc(liveRef(l.id), { guesses: [...(l.guesses || []), t] });
 }
-export function onLiveUpdate() { if (S().view === 'live') renderLive(); }
+export function onLiveUpdate() { if (S().view === 'live' && wsUnlocked().ok) renderLive(); }
 
 // ---------- альбом ----------
 const FILTERS = [['all', 'Усе'], ...ORDER.map((k) => [k, MODES[k].icon])];
-export function renderAlbum() {
+export const renderAlbum = guard(function () {
   const f = S().albF || 'all', list = Object.values(S().art).filter((d) => d.status === 'done' && (f === 'all' || d.type === f)).sort((a, b) => (b.doneAt || b.at) - (a.doneAt || a.at));
   A.app.innerHTML = `<div class="page">${A.top('📖 Наш альбом')}
     <div class="tabs scroll">${FILTERS.map(([k, n]) => `<button class="${f === k ? 'sel' : ''}" data-a="albF" data-f="${k}">${n}</button>`).join('')}</div>
     ${list.length ? `<div class="alb-grid">${list.map((d) => `<button class="alb-it" data-a="artOpen" data-id="${d.id}">${d.thumb ? `<img src="${d.thumb}">` : d.type === 'emoji' ? `<div class="alb-emo">${esc(d.emoji)}</div>` : `<div class="alb-emo">${MODES[d.type].icon}</div>`}
       <span class="alb-like">${Object.keys(d.likes || {}).length ? '❤ ' + Object.keys(d.likes).length : ''}</span></button>`).join('')}</div>` : '<div class="card center"><p>Тут з\'являтимуться ваші малюнки, фото й пісні 💕</p></div>'}</div>`;
-}
+});
 function albumDetailHTML(d) {
   const M = MODES[d.type], liked = !!d.likes?.[me()], who = (u) => esc(u === me() ? 'Ти' : A.nameOf(u));
   let body = '';

@@ -270,3 +270,6 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .alb-emo { width: 100%; height: 100%; display: grid; place-items: center; font-size: 22px; padding: 4px; word-break: break-word; }
 .alb-like { position: absolute; right: 6px; bottom: 4px; font-size: 12px; font-weight: 800; color: var(--deep); background: #fffc; border-radius: 999px; padding: 0 5px; }
 .tv-head { display: flex; justify-content: space-between; text-align: center; } .tv-head b { font-size: 18px; }
+
+.tv-hard { box-shadow: 0 0 0 2px #b38cff, 0 0 22px #b38cff66; }
+.hard-badge { display: inline-block; background: linear-gradient(135deg, #b38cff, #7ad3ff); color: #fff; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 999px; margin-bottom: 6px; }

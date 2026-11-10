@@ -8,7 +8,7 @@ import { initDuels, renderDuels, renderDuel, duelActions, onDuelsUpdate, isPlayi
 import { initShop, renderAvatar, renderShop, shopActions, avOf, wallet, ensureExclusives } from './shop.js';
 import { portrait } from './avatar.js';
 import { sendPush, newTopic } from './notify.js';
-import { initWorkshop, renderWorkshop, renderArtNew, renderArt, renderLive, renderAlbum, workshopActions, onLiveUpdate, isEditing, pendingArt, resetWorkshop } from './workshop.js';
+import { initWorkshop, renderWorkshop, renderArtNew, renderArt, renderLive, renderAlbum, workshopActions, onLiveUpdate, isEditing, pendingArt, resetWorkshop, wsUnlocked } from './workshop.js';
 import { initTrivia, renderTrivia, triviaActions, DAY_CAP } from './trivia.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
@@ -262,8 +262,8 @@ function renderHome() {
       ${tile('duels', '⚔️', 'Дуелі наживо', duelsUnlocked().ok ? dailyDuels(today()).length + ' нові сьогодні' : '🔒 з рангу «Муркотун»', duelsUnlocked().ok ? '' : 'dim')}
       ${tile('avatar', '🐱', 'Мій котик', avOf(me).name ? esc(avOf(me).name) : 'вигляд і гардероб')}
       ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
-      ${tile('workshop', '🎨', 'Творча майстерня', pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', pendingArt() ? 'hot' : '')}
-      ${tile('trivia', '🧹', 'Робота задарма', 'легкі питання за 1 🪙')}
+      ${tile('workshop', '🎨', 'Творча майстерня', !wsUnlocked().ok ? '🔒 з рангу «Котик-романтик»' : pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', !wsUnlocked().ok ? 'dim' : pendingArt() ? 'hot' : '')}
+      ${tile('trivia', '🧹', 'Робота задарма', 'питання за 🪙 · 💎 +50')}
       <div class="tile locked wide"><span class="ti">🧩</span><b>Дві половинки — кооперативний фінал</b><span class="ts">скоро</span></div>
     </div></div>`;
   mountCat(document.getElementById('catStage'), [me, p].filter(Boolean).map((u) => ({ uid: u, av: avOf(u) })));
