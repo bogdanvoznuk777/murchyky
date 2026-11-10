@@ -1,7 +1,7 @@
 // ===== Мурчики: сезон кохання — основна логіка =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
@@ -379,21 +379,19 @@ function renderChallenges() {
     const badge = st === 'approved' ? `<span class="pts ok">✓ +${c.p}</span>` : st === 'pending' ? '<span class="pts wait">⏳ перевіряє партнер</span>' : st === 'rejected' ? '<span class="pts no">відхилено — спробуй ще</span>' : `<span class="pts">+${c.p}</span>`;
     const open = S.openCh === c.id;
     return `<div class="card ch"><div class="cht"><b>${esc(c.t)}</b>${badge}</div>
-      ${!st || st === 'rejected' ? (open ? `<div class="chf"><label class="file">📷 Обрати фото<input type="file" accept="image/*" id="chFile"></label><div id="chPrev"></div>
-        <textarea id="chNote" rows="2" placeholder="Коментар (необов'язково)"></textarea>
-        <div class="row"><button class="btn ghost sm" data-a="chClose">Скасувати</button><button class="btn sm" data-a="chSend" data-c="${c.id}">Надіслати на перевірку</button></div></div>`
-        : `<button class="btn sm" data-a="chOpen" data-c="${c.id}">Виконано! Додати фото</button>`) : ''}
+      ${!st || st === 'rejected' ? (open ? chForm(c) : `<button class="btn sm" data-a="chOpen" data-c="${c.id}">${c.proof === 'audio' ? 'Виконано! Записати голосове 🎙' : 'Виконано! Додати фото 📷'}</button>`) : ''}
+      ${d?.proof === 'audio' && st !== 'rejected' ? `<button class="btn ghost sm" data-a="play" data-id="${d.id}">▶ Послухати своє</button><div id="pl_${d.id}"></div>` : ''}
     </div>`;
   }).join('');
   const toApprove = Object.values(S.challenges).filter((d) => d.uid === p && d.status === 'pending');
   const approveHtml = toApprove.map((d) => {
     const c = list.find((x) => x.id === d.cid) || { t: 'Челендж', p: 0 };
-    return `<div class="card ch"><b>${esc(c.t)}</b>${d.photo ? `<img class="ph" src="${esc(d.photo)}" alt="">` : ''}${d.note ? `<p>${esc(d.note)}</p>` : ''}
+    return `<div class="card ch"><b>${esc(c.t)}</b>${d.photo ? `<img class="ph" src="${esc(d.photo)}" alt="">` : ''}${d.proof === 'audio' ? `<div><button class="btn ghost sm" data-a="play" data-id="${d.id}">▶ Слухати голосове${d.audioDur ? ' (' + fmtDur(d.audioDur) + ')' : ''}</button><div id="pl_${d.id}"></div></div>` : ''}${d.note ? `<p>${esc(d.note)}</p>` : ''}
       <div class="row"><button class="btn ghost sm" data-a="chRej" data-id="${d.id}">Не зараховую</button><button class="btn sm" data-a="chOk" data-id="${d.id}">Зараховую +${c.p}</button></div></div>`;
   }).join('');
   const gallery = Object.values(S.challenges).filter((d) => d.status === 'approved' && d.photo).map((d) => `<img class="thumb ${sideOf(d.uid)}" src="${esc(d.photo)}" alt="">`).join('');
   app.innerHTML = `<div class="page">${top('Челенджі тижня')}
-    <p class="muted small center-t">Виконай завдання, додай фото — партнер підтверджує. Нові челенджі щопонеділка.</p>
+    <p class="muted small center-t">Виконай завдання, додай фото або голосове — партнер підтверджує. Нові челенджі щопонеділка.</p>
     ${toApprove.length ? `<h3 class="sec">🔔 Перевір ${esc(nameOf(p))}</h3>${approveHtml}` : ''}
     <h3 class="sec">Мої завдання</h3>${mineHtml}
     ${gallery ? `<h3 class="sec">Галерея тижня</h3><div class="gallery">${gallery}</div>` : ''}</div>`;
@@ -403,6 +401,77 @@ function renderChallenges() {
     try { S.chPhoto = await compress(file); document.getElementById('chPrev').innerHTML = `<img class="ph" src="${S.chPhoto}" alt="">`; }
     catch { toast('Не вдалося прочитати фото. Спробуй інше.'); }
   };
+  const af = document.getElementById('chAudioFile');
+  if (af) af.onchange = () => {
+    const file = af.files?.[0]; if (!file) return;
+    if (file.size > MAX_AUDIO_BYTES) return toast('Файл завеликий (макс. ~4 МБ)');
+    setAudio(file, 0); render();
+  };
+}
+
+// ----- голосові повідомлення -----
+const MAX_REC_SEC = 180, MAX_AUDIO_BYTES = 4 * 1024 * 1024, PART = 700000;
+const fmtDur = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
+function chForm(c) {
+  const note = `<textarea id="chNote" rows="2" placeholder="Коментар (необов'язково)">${esc(S.chNote || '')}</textarea>`;
+  const btns = `<div class="row"><button class="btn ghost sm" data-a="chClose">Скасувати</button><button class="btn sm" data-a="chSend" data-c="${c.id}">Надіслати на перевірку</button></div>`;
+  if (c.proof !== 'audio') return `<div class="chf"><label class="file">📷 Обрати фото<input type="file" accept="image/*" id="chFile"></label><div id="chPrev"></div>${note}${btns}</div>`;
+  const r = S.rec;
+  let body;
+  if (r?.state === 'rec') body = `<div class="rec"><span class="dot"></span> Запис… <b id="recT">${fmtDur((Date.now() - r.t0) / 1000)}</b> / ${fmtDur(MAX_REC_SEC)}</div><button class="btn sm" data-a="recStop">⏹ Зупинити</button>`;
+  else if (S.chAudio) body = `<audio controls src="${S.chAudio.url}"></audio><div class="muted small">Тривалість: ${S.chAudio.dur ? fmtDur(S.chAudio.dur) : '—'}</div><button class="btn ghost sm" data-a="recStart">🎙 Перезаписати</button>`;
+  else body = `<button class="btn rec-btn" data-a="recStart">🎙 Почати запис</button><label class="link small">або обрати аудіофайл<input type="file" accept="audio/*" id="chAudioFile" hidden></label>`;
+  return `<div class="chf"><div class="muted small">Для цього завдання доказом є голосове повідомлення (до ${MAX_REC_SEC / 60} хв).</div>${body}${note}${btns}</div>`;
+}
+function setAudio(blob, dur) {
+  if (S.chAudio?.url) URL.revokeObjectURL(S.chAudio.url);
+  S.chAudio = { blob, dur, url: URL.createObjectURL(blob), type: (blob.type || 'audio/webm').split(';')[0] };
+}
+function pickMime() {
+  if (!window.MediaRecorder) return null;
+  for (const m of ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm', 'audio/ogg;codecs=opus']) if (!MediaRecorder.isTypeSupported || MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+async function recStart() {
+  const mime = pickMime();
+  if (mime === null) return toast('Цей браузер не вміє записувати. Обери аудіофайл.');
+  S.chNote = document.getElementById('chNote')?.value || '';
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { return toast('Немає доступу до мікрофона. Дозволь його в налаштуваннях браузера.'); }
+  const opts = { audioBitsPerSecond: 32000 }; if (mime) opts.mimeType = mime;
+  let mr; try { mr = new MediaRecorder(stream, opts); } catch { mr = new MediaRecorder(stream); }
+  const chunks = [];
+  mr.ondataavailable = (e) => e.data?.size && chunks.push(e.data);
+  mr.onstop = () => {
+    stream.getTracks().forEach((t) => t.stop());
+    clearInterval(S.rec?.timer);
+    const dur = (Date.now() - S.rec.t0) / 1000, blob = new Blob(chunks, { type: mr.mimeType || mime || 'audio/webm' });
+    S.rec = null;
+    if (blob.size > MAX_AUDIO_BYTES) { toast('Запис завеликий, спробуй коротше'); return render(); }
+    setAudio(blob, dur); render();
+  };
+  S.rec = { state: 'rec', mr, t0: Date.now() };
+  S.rec.timer = setInterval(() => {
+    const sec = (Date.now() - S.rec.t0) / 1000, el = document.getElementById('recT');
+    if (el) el.textContent = fmtDur(sec);
+    if (sec >= MAX_REC_SEC) recStop();
+  }, 500);
+  mr.start(1000); render();
+}
+function recStop() { S.chNote = document.getElementById('chNote')?.value || ''; if (S.rec?.mr?.state === 'recording') S.rec.mr.stop(); }
+function recCancel() { if (S.rec?.mr?.state === 'recording') { S.rec.mr.onstop = null; S.rec.mr.stream.getTracks().forEach((t) => t.stop()); S.rec.mr.stop(); } clearInterval(S.rec?.timer); S.rec = null; if (S.chAudio?.url) URL.revokeObjectURL(S.chAudio.url); S.chAudio = null; S.chNote = ''; }
+const blobToB64 = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(blob); });
+async function playAudio(id) {
+  const box = document.getElementById('pl_' + id), d = S.challenges[id]; if (!box || !d) return;
+  box.innerHTML = '<span class="muted small">Завантаження…</span>';
+  try {
+    let b64 = '';
+    for (let i = 0; i < (d.audioParts || 0); i++) b64 += (await getDoc(doc(db, 'audio', `${id}_${i}`))).data()?.data || '';
+    const bin = atob(b64), arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([arr], { type: d.audioType || 'audio/webm' }));
+    box.innerHTML = `<audio controls autoplay src="${url}"></audio>`;
+  } catch (e) { console.error(e); box.innerHTML = '<span class="err">Не вдалося завантажити запис</span>'; }
 }
 async function compress(file) {
   const url = URL.createObjectURL(file);
@@ -421,11 +490,20 @@ async function compress(file) {
   } finally { URL.revokeObjectURL(url); }
 }
 async function chSend(cid) {
-  if (!S.chPhoto) return toast('Додай фото-підтвердження');
-  const w = week(), note = document.getElementById('chNote')?.value.trim() || '';
+  const c = weekChallenges(week()).find((x) => x.id === cid), audio = c?.proof === 'audio';
+  if (audio && S.rec) return toast('Спершу зупини запис');
+  if (audio ? !S.chAudio : !S.chPhoto) return toast(audio ? 'Запиши голосове повідомлення' : 'Додай фото-підтвердження');
+  const w = week(), id = `${w}_${cid}_${S.uid}`, note = document.getElementById('chNote')?.value.trim() || '';
   await safe(async () => {
-    await setDoc(doc(db, 'challenges', `${w}_${cid}_${S.uid}`), { week: w, cid, uid: S.uid, photo: S.chPhoto, note, status: 'pending', ts: Date.now() });
-    S.openCh = null; S.chPhoto = null; toast('Надіслано на перевірку 💌');
+    const data = { week: w, cid, uid: S.uid, note, status: 'pending', ts: Date.now() };
+    if (audio) {
+      toast('Надсилаю голосове…');
+      const b64 = await blobToB64(S.chAudio.blob), n = Math.ceil(b64.length / PART);
+      for (let i = 0; i < n; i++) await setDoc(doc(db, 'audio', `${id}_${i}`), { data: b64.slice(i * PART, (i + 1) * PART) });
+      Object.assign(data, { proof: 'audio', audioParts: n, audioType: S.chAudio.type, audioDur: Math.round(S.chAudio.dur || 0) });
+    } else data.photo = S.chPhoto;
+    await setDoc(doc(db, 'challenges', id), data);
+    recCancel(); S.openCh = null; S.chPhoto = null; toast('Надіслано на перевірку 💌');
   });
   render();
 }
@@ -471,7 +549,7 @@ function renderReward() {
 
 // ---------- дії ----------
 const actions = {
-  go: (el) => { const to = el.dataset.to; S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
+  go: (el) => { const to = el.dataset.to; recCancel(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
   logout: () => signOut(auth),
   authMode: () => { S.authMode = S.authMode === 'login' ? 'register' : 'login'; S.authErr = ''; renderAuth(); },
   pick: (el) => {
@@ -484,8 +562,10 @@ const actions = {
   qNext: quizNext,
   grade,
   key: (el) => wordleKey(el.dataset.k),
-  chOpen: (el) => { S.openCh = el.dataset.c; S.chPhoto = null; render(); },
-  chClose: () => { S.openCh = null; S.chPhoto = null; render(); },
+  chOpen: (el) => { recCancel(); S.openCh = el.dataset.c; S.chPhoto = null; render(); },
+  chClose: () => { recCancel(); S.openCh = null; S.chPhoto = null; render(); },
+  recStart, recStop: () => recStop(),
+  play: (el) => playAudio(el.dataset.id),
   chSend: (el) => chSend(el.dataset.c),
   chOk: (el) => chDecide(el.dataset.id, true),
   chRej: (el) => chDecide(el.dataset.id, false),
