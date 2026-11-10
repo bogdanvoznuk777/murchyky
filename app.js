@@ -3,6 +3,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
+import { mountCat } from './cat.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
 
@@ -235,6 +236,7 @@ function renderHome() {
     <section class="card score">
       <div class="muted small center-t">Сезон: ${weekLabel(w)} · до фіналу ${timeLeftInWeek()}</div>
       <div class="vs">${side(me, mine)}<div class="vsx">VS</div>${p ? side(p, theirs) : '<div class="pl"><div class="pn">?</div><div class="pp">0</div></div>'}</div>
+      <div id="catStage"></div>
       <button class="reward" data-a="go" data-to="reward">🎁 Нагорода тижня: <b>${reward ? esc(reward) : 'ще не обрано — натисни, щоб вписати'}</b></button>
     </section>
     ${toCheck ? `<button class="alert" data-a="go" data-to="${pendingGrades().length ? 'grade' : 'challenges'}">🔔 Потрібна твоя перевірка: ${toCheck}</button>` : ''}
@@ -248,6 +250,7 @@ function renderHome() {
       <div class="tile locked"><span class="ti">🎨</span><b>Малюй і вгадуй</b><span class="ts">скоро</span></div>
       <div class="tile locked wide"><span class="ti">🧩</span><b>Дві половинки — кооперативний фінал</b><span class="ts">скоро</span></div>
     </div></div>`;
+  mountCat(document.getElementById('catStage'));
 }
 
 // ----- квіз -----
