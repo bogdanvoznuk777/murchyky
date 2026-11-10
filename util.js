@@ -48,7 +48,9 @@ export function scoreGuess(guess, answer) {
 export const UA_LETTERS = 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюя';
 
 export function weekChallenges(week) {
-  return shuffle(CHALLENGES, 'ch' + week).slice(0, CHALLENGES_PER_WEEK);
+  // Перший сезон лишаємо без змін (тоді в пулі було 28 челенджів)
+  const pool = week < '2026-11-16' ? CHALLENGES.slice(0, 28) : CHALLENGES;
+  return shuffle(pool, 'ch' + week).slice(0, CHALLENGES_PER_WEEK);
 }
 
 // Питання квізу на день: ідемо по колу через усі відповіді партнера
