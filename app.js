@@ -1,9 +1,13 @@
 // ===== Мурчики: сезон кохання — основна логіка =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 import { mountCat } from './cat.js';
+import { initDuels, renderDuels, renderDuel, duelActions, onDuelsUpdate, isPlaying, unlocked as duelsUnlocked, dailyDuels } from './duels.js';
+import { initShop, renderAvatar, renderShop, shopActions, avOf, wallet, ensureExclusives } from './shop.js';
+import { portrait } from './avatar.js';
+import { sendPush, newTopic } from './notify.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
 
@@ -13,7 +17,7 @@ const auth = getAuth(fb);
 const db = getFirestore(fb);
 
 const S = {
-  uid: null, registering: false, users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
+  uid: null, registering: false, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
   loaded: new Set(), view: 'loading', denied: false, busy: false,
   draft: {}, sIdx: 0, quiz: null, qIdx: 0, qGuess: {}, wCur: '', openCh: null, authMode: 'login', authErr: '',
 };
@@ -80,7 +84,7 @@ onAuthStateChanged(auth, (user) => {
 });
 function start(user) {
   unsubs.forEach((u) => u()); unsubs = [];
-  Object.assign(S, { uid: user?.uid || null, users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
+  Object.assign(S, { uid: user?.uid || null, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
   if (!user) { S.view = 'auth'; render(); return; }
   S.view = 'loading'; render();
   setDoc(doc(db, 'users', user.uid), { nick: emailToNick(user.email), lastSeen: Date.now() }, { merge: true }).catch(onErr);
@@ -91,6 +95,9 @@ function start(user) {
   sub('rewards', collection(db, 'rewards'), (s) => { S.rewards = {}; s.forEach((d) => (S.rewards[d.id] = d.data())); });
   sub('quiz', collection(db, 'quiz'), (s) => { S.quizzes = {}; s.forEach((d) => (S.quizzes[d.id] = { ...d.data(), id: d.id })); });
   sub('wordle', collection(db, 'wordle'), (s) => { S.wordles = {}; s.forEach((d) => (S.wordles[d.id] = d.data())); });
+  sub('duels', query(collection(db, 'duels'), where('date', '==', today())), (s) => { S.duels = {}; s.forEach((d) => (S.duels[d.id] = { ...d.data(), id: d.id })); });
+  sub('avatars', collection(db, 'avatars'), (s) => { S.avatars = {}; s.forEach((d) => (S.avatars[d.id] = d.data())); });
+  sub('spend', collection(db, 'spend'), (s) => { S.spends = []; s.forEach((d) => S.spends.push(d.data())); });
   S.subWeek = week();
   sub('challenges', query(collection(db, 'challenges'), where('week', '==', week())), (s) => { S.challenges = {}; s.forEach((d) => (S.challenges[d.id] = { ...d.data(), id: d.id })); });
 }
@@ -109,20 +116,22 @@ function onErr(e) {
   console.error(e);
   if (e?.code === 'permission-denied') { S.denied = true; render(); }
 }
-const LIVE = new Set(['home', 'ranks', 'grade', 'wordle']);
+const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop']);
 function onData() {
-  if (S.loaded.size < 7) return;
+  if (S.loaded.size < 10) return;
+  if (S.uid && !S.users[S.uid]?.ntfy) { S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
+  onDuelsUpdate(); ensureExclusives();
   if (S.view === 'loading') {
     if (!surveyDone(S.uid)) startSurvey(); else S.view = 'home';
     render(); return;
   }
-  if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh)) render();
+  if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh) || (S.view === 'duel' && !isPlaying())) render();
 }
 
 // ---------- рендер ----------
 function render() {
   if (S.denied) return renderDenied();
-  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward }[S.view];
+  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop }[S.view];
   (v || renderHome)();
   window.scrollTo?.(0, 0);
 }
@@ -231,7 +240,7 @@ function renderHome() {
   const tile = (a, ico, title, status, cls = '') => `<button class="tile ${cls}" data-a="go" data-to="${a}"><span class="ti">${ico}</span><b>${title}</b><span class="ts">${status}</span></button>`;
   const partnerReady = surveyDone(p);
   app.innerHTML = `<div class="page">
-    <header class="hello">${catSVG(56)}<div><div class="muted small">Привіт,</div><b class="big">${esc(nameOf(me))}</b></div><button class="rk" data-a="go" data-to="ranks">${rk.icon}</button></header>
+    <header class="hello"><button class="hello-av" data-a="go" data-to="avatar">${portrait(avOf(me), 58)}</button><div><div class="muted small">Привіт,</div><b class="big">${esc(nameOf(me))}</b></div><button class="rk" data-a="go" data-to="ranks">${rk.icon}</button></header>
     ${!p ? `<div class="note">Партнер(ка) ще не зареєструвався(лась). Надішли їй (йому) посилання на гру ${heart}</div>` : !partnerReady ? `<div class="note">Чекаємо, поки ${esc(nameOf(p))} пройде опитування — тоді відкриється квіз.</div>` : ''}
     <section class="card score">
       <div class="muted small center-t">Сезон: ${weekLabel(w)} · до фіналу ${timeLeftInWeek()}</div>
@@ -246,11 +255,13 @@ function renderHome() {
       ${tile('challenges', '📸', 'Челенджі тижня', `${myDone} з ${chs.length}`)}
       ${tile('grade', '✍️', 'Оцінити відповіді', pendingGrades().length ? `${pendingGrades().length} чекає` : 'все оцінено')}
       ${tile('ranks', '🏆', 'Ранги й сезони', `${rk.icon} ${rk.name}`)}
-      <div class="tile locked"><span class="ti">⚡</span><b>Дуелі наживо</b><span class="ts">скоро</span></div>
+      ${tile('duels', '⚔️', 'Дуелі наживо', duelsUnlocked().ok ? dailyDuels(today()).length + ' нові сьогодні' : '🔒 з рангу «Муркотун»', duelsUnlocked().ok ? '' : 'dim')}
+      ${tile('avatar', '🐱', 'Мій котик', avOf(me).name ? esc(avOf(me).name) : 'вигляд і гардероб')}
+      ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
       <div class="tile locked"><span class="ti">🎨</span><b>Малюй і вгадуй</b><span class="ts">скоро</span></div>
       <div class="tile locked wide"><span class="ti">🧩</span><b>Дві половинки — кооперативний фінал</b><span class="ts">скоро</span></div>
     </div></div>`;
-  mountCat(document.getElementById('catStage'));
+  mountCat(document.getElementById('catStage'), [me, p].filter(Boolean).map((u) => ({ uid: u, av: avOf(u) })));
 }
 
 // ----- квіз -----
@@ -285,6 +296,7 @@ async function quizNext() {
     for (const id of S.quiz.qids) results[id] = autoGrade(SURVEY_BY_ID[id], S.qGuess[id], pa[id]);
     await setDoc(doc(db, 'quiz', S.quiz.id), { date: today(), guesser: S.uid, about: p, qids: S.quiz.qids, guesses: S.qGuess, results, done: true, ts: Date.now() });
     for (const id of S.quiz.qids) if (results[id] > 0) await award(`q_${S.quiz.id}_${id}`, S.uid, results[id], 'Квіз');
+    if (Object.values(results).some((v) => v === null)) notify(p, '✍️ Оціни відповіді', `${nameOf(S.uid)} пройшов(ла) квіз про тебе — оціни розгорнуті відповіді`);
   });
   render();
 }
@@ -507,6 +519,7 @@ async function chSend(cid) {
     } else data.photo = S.chPhoto;
     await setDoc(doc(db, 'challenges', id), data);
     recCancel(); S.openCh = null; S.chPhoto = null; toast('Надіслано на перевірку 💌');
+    notify(pUid(), '📸 Челендж на перевірку', `${nameOf(S.uid)} виконав(ла) челендж — зарахуй!`);
   });
   render();
 }
@@ -537,6 +550,11 @@ function renderRanks() {
     <h3 class="sec">Драбина рангів</h3><div class="card ladder">${RANKS.map((r) => `<div>${r.icon} ${esc(r.name)} <span class="muted">від ${r.min}</span></div>`).join('')}</div>
     <h3 class="sec">Минулі сезони</h3>${hist || '<p class="muted small">Перший сезон ще триває.</p>'}
     <div class="card"><b>Як заробляти бали</b><div class="muted small">Опитування +${PTS.survey} · Квіз до +${PTS.quizFull} за питання · Слово дня до +${PTS.wordleBase * 6 + PTS.wordleFirst} · Челенджі +20…50</div></div>
+    <div class="card"><b>🔔 Сповіщення на телефон</b>
+      <ol class="small steps"><li>Встанови застосунок <b>ntfy</b> (App Store / Google Play).</li><li>У ntfy натисни <b>+</b> і введи назву каналу (сервер — стандартний ntfy.sh):</li></ol>
+      <div class="topic"><code id="myTopic">${esc(S.users[S.uid]?.ntfy || '…')}</code><button class="btn ghost sm" data-a="copyTopic">Копіювати</button></div>
+      <p class="muted small">Прийдуть: виклики на дуель, подарунки, челенджі й відповіді на перевірку. Натисни на сповіщення — відкриється гра.</p>
+      <button class="btn ghost sm" data-a="testPush">Надіслати тестове собі</button></div>
     <button class="btn ghost" data-a="logout">Вийти з акаунта</button></div>`;
 }
 
@@ -551,7 +569,11 @@ function renderReward() {
 }
 
 // ---------- дії ----------
+function notify(uid, title, msg) { return sendPush(S.users[uid]?.ntfy, title, msg); }
 const actions = {
+  ...duelActions, ...shopActions,
+  copyTopic: () => { const t = S.users[S.uid]?.ntfy || ''; navigator.clipboard?.writeText(t).then(() => toast('Скопійовано ✓'), () => toast(t)); },
+  testPush: () => { notify(S.uid, '🐱 Мур!', 'Сповіщення працюють 💕'); toast('Надіслано — перевір ntfy'); },
   go: (el) => { const to = el.dataset.to; recCancel(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
   logout: () => signOut(auth),
   authMode: () => { S.authMode = S.authMode === 'login' ? 'register' : 'login'; S.authErr = ''; renderAuth(); },
@@ -582,3 +604,7 @@ app.addEventListener('click', (e) => {
   const el = e.target.closest('[data-a]'); if (!el) return;
   e.preventDefault(); actions[el.dataset.a]?.(el);
 });
+
+// ---------- спільні функції для модулів дуелей і магазину ----------
+const api = { S, db, doc, setDoc, updateDoc, arrayUnion, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+initDuels(api); initShop(api);
