@@ -1,34 +1,51 @@
 // ===== Кішечка на головному екрані: гуляє, зупиняється, дивиться на тебе й муркоче =====
-const SPEED = 38; // пікселів за секунду
+const SPEED = 24; // пікселів за секунду (під крок лап)
 
-const GRAD = (k) => `<defs>
-  <linearGradient id="furG${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8395ad"/><stop offset=".55" stop-color="#97a8bd"/><stop offset="1" stop-color="#aebdcd"/></linearGradient>
-  <linearGradient id="furD${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#76889f"/><stop offset="1" stop-color="#8b9cb2"/></linearGradient>
+const GRAD = (k, u) => `<defs>
+  <linearGradient id="furG${k}" ${u ? 'gradientUnits="userSpaceOnUse" x1="0" y1="38" x2="0" y2="122"' : 'x1="0" y1="0" x2="0" y2="1"'}><stop offset="0" stop-color="#8395ad"/><stop offset=".55" stop-color="#97a8bd"/><stop offset="1" stop-color="#aebdcd"/></linearGradient>
+  <linearGradient id="furD${k}" ${u ? 'gradientUnits="userSpaceOnUse" x1="0" y1="30" x2="0" y2="120"' : 'x1="0" y1="0" x2="0" y2="1"'}><stop offset="0" stop-color="#76889f"/><stop offset="1" stop-color="#8b9cb2"/></linearGradient>
   <radialGradient id="eyeG${k}" cx=".45" cy=".4" r=".6"><stop offset="0" stop-color="#ffd27a"/><stop offset=".7" stop-color="#e9a23b"/><stop offset="1" stop-color="#c47d1c"/></radialGradient>
 </defs>`;
 
-// Вид збоку — під час ходьби (дивиться праворуч)
-const SIDE = `<svg viewBox="0 0 170 120" class="cat-side" aria-hidden="true">${GRAD('s')}
-  <ellipse cx="88" cy="113" rx="56" ry="5" fill="#5a3a4a" opacity=".1"/>
-  <path class="c-tail" d="M42 62 C22 60 12 40 22 18" stroke="url(#furDs)" stroke-width="10" fill="none" stroke-linecap="round"/>
-  <g class="leg la far"><rect x="102" y="62" width="12" height="40" rx="6" fill="url(#furDs)"/><ellipse cx="109" cy="102" rx="8" ry="4.5" fill="#7b8da4"/></g>
-  <g class="leg lb far"><rect x="46" y="62" width="12" height="40" rx="6" fill="url(#furDs)"/><ellipse cx="53" cy="102" rx="8" ry="4.5" fill="#7b8da4"/></g>
-  <path d="M36 62 C36 44 58 38 86 40 C112 41 130 45 132 59 C133 72 118 81 86 81 C55 81 36 76 36 62Z" fill="url(#furGs)"/>
-  <path d="M58 76 C74 83 104 83 118 74 C112 82 70 86 58 76Z" fill="#b8c6d4" opacity=".8"/>
-  <g class="leg lb near"><rect x="56" y="64" width="13" height="40" rx="6.5" fill="url(#furGs)"/><ellipse cx="63" cy="104" rx="9" ry="5" fill="#a9b8c9"/></g>
-  <g class="leg la near"><rect x="112" y="64" width="13" height="40" rx="6.5" fill="url(#furGs)"/><ellipse cx="119" cy="104" rx="9" ry="5" fill="#a9b8c9"/></g>
+// Вид збоку — під час ходьби (дивиться праворуч). Ноги з суглобами: стегно/плече + гомілка/передпліччя
+const leg = (cls, hind, dx, fill, paw) => hind
+  ? `<g class="leg ${cls} hind"><g class="up" style="transform-origin:${58 + dx}px 62px">
+      <path d="M${46 + dx} 58 C${43 + dx} 76 ${52 + dx} 93 ${66 + dx} 93 C${76 + dx} 92 ${75 + dx} 78 ${70 + dx} 62Z" fill="${fill}"/>
+      <g class="lo" style="transform-origin:${66 + dx}px 88px">
+        <path d="M${66 + dx} 88 L${57 + dx} 105 L${60 + dx} 116" stroke="${fill}" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <ellipse cx="${63 + dx}" cy="117.5" rx="7" ry="3.6" fill="${paw}"/></g></g></g>`
+  : `<g class="leg ${cls} fore"><g class="up" style="transform-origin:${136 + dx}px 62px">
+      <path d="M${125 + dx} 58 C${123 + dx} 74 ${126 + dx} 88 ${132 + dx} 94 C${141 + dx} 94 ${146 + dx} 78 ${145 + dx} 60Z" fill="${fill}"/>
+      <g class="lo" style="transform-origin:${134 + dx}px 89px">
+        <path d="M${134 + dx} 89 L${136 + dx} 115" stroke="${fill}" stroke-width="8.5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="${139 + dx}" cy="117.5" rx="7" ry="3.6" fill="${paw}"/></g></g></g>`;
+
+const SIDE = `<svg viewBox="0 0 200 130" class="cat-side" aria-hidden="true">${GRAD('s', true)}
+  <ellipse cx="100" cy="121" rx="66" ry="4.5" fill="#5a3a4a" opacity=".1"/>
+  <g class="c-tail"><path d="M44 58 C26 57 15 52 10 40 C7 32 12 26 18 29" stroke="url(#furDs)" stroke-width="10" fill="none" stroke-linecap="round"/></g>
+  ${leg('lf2', false, -7, 'url(#furDs)', '#72849b')}
+  ${leg('lh2', true, -7, 'url(#furDs)', '#72849b')}
+  <g class="c-torso">
+    <path d="M38 64 C37 50 47 43 62 43 C79 43 92 47 110 45 C127 43 141 41 151 47 C159 53 157 70 149 80 C143 87 132 87 122 84 C108 81 94 82 80 80 C70 79 60 85 50 82 C42 79 38 72 38 64Z" fill="url(#furGs)"/>
+    <path d="M80 79 C95 82 110 82 124 84 C133 86 143 85 148 80 C140 83 130 83 120 81 C106 79 94 80 80 79Z" fill="#b8c6d4" opacity=".7"/>
+    <path d="M56 46 C66 44 76 46 84 48" stroke="#7b8da4" stroke-width="2" fill="none" opacity=".35" stroke-linecap="round"/>
+  </g>
+  ${leg('lh1', true, 0, 'url(#furGs)', '#a9b8c9')}
+  ${leg('lf1', false, 0, 'url(#furGs)', '#a9b8c9')}
   <g class="c-head">
-    <ellipse cx="134" cy="42" rx="25" ry="22" fill="url(#furGs)"/>
-    <path d="M118 25 C121 13 136 11 141 20 C135 22 126 25 118 25Z" fill="#7b8da4"/>
-    <path d="M122 23 C125 17 132 16 136 20 C131 21 127 22 122 23Z" fill="#f4b6c8"/>
-    <ellipse cx="149" cy="51" rx="11" ry="8" fill="#b8c6d4"/>
-    <ellipse cx="142" cy="38" rx="5.5" ry="6.5" fill="url(#eyeGs)"/>
-    <ellipse cx="143.5" cy="38.5" rx="1.8" ry="5" fill="#2b2b33"/>
-    <circle cx="144" cy="35.5" r="1.5" fill="#fff"/>
-    <path d="M155 45 L160 46 L156 50Z" fill="#f08aa8"/>
-    <path d="M156 50 Q155 56 149 55" stroke="#5d6a7c" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    <ellipse cx="135" cy="50" rx="5" ry="3" fill="#ff9ab8" opacity=".45"/>
-    <g stroke="#eef2f6" stroke-width="1.2" stroke-linecap="round"><path d="M150 51 L168 47M150 54 L168 56"/></g>
+    <path d="M147 40 C149 27 162 21 174 24 C183 27 188 34 189 41 C191 43 192 46 190 48 C189 51 186 53 183 54 C180 59 173 61 166 60 C156 59 148 54 146 47 C145 44 146 42 147 40Z" fill="url(#furGs)"/>
+    <path d="M157 28 C159 19 170 17 175 23 C171 24 164 26 157 28Z" fill="#76889f"/>
+    <path d="M160 26 C162 21 168 20 171 23 C168 24 164 25 160 26Z" fill="#f4b6c8"/>
+    <path d="M176 49 C180 47 186 47 190 48 C189 52 185 55 180 55 C177 55 175 52 176 49Z" fill="#b8c6d4"/>
+    <path d="M171 38 C173 34 179 33 181 37 C179 41 173 42 171 38Z" fill="url(#eyeGs)"/>
+    <path d="M176.5 34.2 C175.6 36 175.6 39.5 176.6 41" stroke="#2b2b33" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    <circle cx="178.5" cy="36" r="1" fill="#fff"/>
+    <path d="M170.5 38 C173 33 180 32 182 37" stroke="#5d6a7c" stroke-width="1" fill="none" opacity=".6"/>
+    <path d="M188 42.5 C190 42.5 191.5 44 191 46 L188.5 46Z" fill="#f08aa8"/>
+    <path d="M189 49 C188 51 186 52 184 52" stroke="#5d6a7c" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <path d="M164 50 C166 54 170 56 175 57" stroke="#a6b5c7" stroke-width="3" fill="none" stroke-linecap="round" opacity=".6"/>
+    <ellipse cx="168" cy="47" rx="5" ry="3" fill="#ff9ab8" opacity=".35"/>
+    <g stroke="#eef2f6" stroke-width="1" stroke-linecap="round" opacity=".9"><path d="M182 50 L199 46M182 52 L199 53M181 54 L196 58"/></g>
   </g>
 </svg>`;
 
