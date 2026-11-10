@@ -125,3 +125,40 @@ button, input, textarea { font-family: 'Nunito', system-ui, -apple-system, sans-
 .rec-btn { width: 100%; margin: 6px 0; }
 .chf audio, .ch audio { width: 100%; margin: 8px 0; }
 .chf .link { display: block; text-align: center; }
+
+/* кішечка на головному екрані */
+.cat-stage { position: relative; height: 112px; margin: 2px 0; }
+.cat-stage::after { content: ''; position: absolute; left: 6px; right: 6px; bottom: 5px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #f3b5cc, transparent); }
+.kitty { position: absolute; left: 0; bottom: 0; width: 120px; height: 110px; cursor: pointer; will-change: transform; z-index: 1; }
+.kitty .pose { position: absolute; inset: 0; transition: opacity .35s, transform .35s; }
+.kitty .side svg { position: absolute; bottom: 0; left: 0; width: 120px; height: auto; transition: transform .25s; }
+.kitty .front svg { position: absolute; bottom: 0; left: 14px; width: 92px; height: auto; }
+.kitty .front { opacity: 0; transform: scale(.92); transform-origin: 50% 100%; }
+.kitty.look .side, .kitty.purr .side { opacity: 0; }
+.kitty.look .front, .kitty.purr .front { opacity: 1; transform: none; }
+.kitty[data-dir="-1"] .side svg { transform: scaleX(-1); }
+.kitty .leg { transform-box: fill-box; transform-origin: 50% 0; }
+.kitty.walk .leg { animation: catSwing .7s ease-in-out infinite; }
+.kitty.walk .leg.lb { animation-delay: -.35s; }
+@keyframes catSwing { 0%, 100% { transform: rotate(-17deg); } 50% { transform: rotate(17deg); } }
+.kitty.walk .c-head { animation: catBob .35s ease-in-out infinite; }
+@keyframes catBob { 50% { transform: translateY(1.5px); } }
+.c-tail { transform-box: fill-box; transform-origin: 100% 100%; animation: catTail 1.6s ease-in-out infinite; }
+@keyframes catTail { 50% { transform: rotate(10deg); } }
+.c-tail2 { transform-box: fill-box; transform-origin: 0 100%; animation: catTail2 2.4s ease-in-out infinite; }
+@keyframes catTail2 { 50% { transform: rotate(-14deg); } }
+.eyes-closed { opacity: 0; } .kitty.purr .eyes-closed { opacity: 1; } .kitty.purr .eyes-open { opacity: 0; }
+.eyes-open { transform-box: fill-box; transform-origin: center; animation: catBlink 4s infinite; }
+@keyframes catBlink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+.c-body { transform-box: fill-box; transform-origin: 50% 100%; }
+.kitty.purr .c-body { animation: catPurr .18s ease-in-out infinite; }
+@keyframes catPurr { 50% { transform: scale(1.012, .99); } }
+.c-face { transform-box: fill-box; transform-origin: 50% 85%; }
+.kitty.look .c-face { animation: catTilt 2.2s ease-in-out infinite; }
+@keyframes catTilt { 50% { transform: rotate(-7deg); } }
+.bubble { position: absolute; left: 78px; top: -4px; background: #fff; color: var(--deep); font: 800 13px 'Nunito', system-ui, sans-serif; padding: 6px 10px; border-radius: 14px 14px 14px 4px; box-shadow: 0 4px 12px #d4588a33; opacity: 0; transform: translateY(6px) scale(.9); transition: .3s; white-space: nowrap; pointer-events: none; }
+.kitty[data-side="r"] .bubble { left: auto; right: 78px; border-radius: 14px 14px 4px 14px; }
+.kitty.purr .bubble { opacity: 1; transform: none; }
+.pet-heart { position: absolute; bottom: 60px; color: var(--pink); font-size: 18px; pointer-events: none; animation: catHeart 1.6s ease-out forwards; z-index: 2; }
+@keyframes catHeart { from { transform: translateY(0) scale(.6); opacity: 1; } to { transform: translateY(-70px) scale(1.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .kitty * { animation: none !important; } }
