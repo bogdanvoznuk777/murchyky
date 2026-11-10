@@ -120,3 +120,8 @@ input:focus, textarea:focus { border-color: var(--pink2); }
 @media (max-width: 360px) { .wrow { grid-template-columns: repeat(5, 46px); } .cell { height: 46px; } }
 
 button, input, textarea { font-family: 'Nunito', system-ui, -apple-system, sans-serif; }
+.rec { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--deep); margin: 6px 0; }
+.rec .dot { width: 12px; height: 12px; border-radius: 50%; background: #e53935; animation: beat 1s infinite; }
+.rec-btn { width: 100%; margin: 6px 0; }
+.chf audio, .ch audio { width: 100%; margin: 8px 0; }
+.chf .link { display: block; text-align: center; }
