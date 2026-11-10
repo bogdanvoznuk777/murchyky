@@ -8,6 +8,8 @@ import { initDuels, renderDuels, renderDuel, duelActions, onDuelsUpdate, isPlayi
 import { initShop, renderAvatar, renderShop, shopActions, avOf, wallet, ensureExclusives } from './shop.js';
 import { portrait } from './avatar.js';
 import { sendPush, newTopic } from './notify.js';
+import { initWorkshop, renderWorkshop, renderArtNew, renderArt, renderLive, renderAlbum, workshopActions, onLiveUpdate, isEditing, pendingArt, resetWorkshop } from './workshop.js';
+import { initTrivia, renderTrivia, triviaActions, DAY_CAP } from './trivia.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
 
@@ -17,7 +19,7 @@ const auth = getAuth(fb);
 const db = getFirestore(fb);
 
 const S = {
-  uid: null, registering: false, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
+  uid: null, registering: false, art: {}, live: {}, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
   loaded: new Set(), view: 'loading', denied: false, busy: false,
   draft: {}, sIdx: 0, quiz: null, qIdx: 0, qGuess: {}, wCur: '', openCh: null, authMode: 'login', authErr: '',
 };
@@ -84,7 +86,7 @@ onAuthStateChanged(auth, (user) => {
 });
 function start(user) {
   unsubs.forEach((u) => u()); unsubs = [];
-  Object.assign(S, { uid: user?.uid || null, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
+  Object.assign(S, { uid: user?.uid || null, art: {}, live: {}, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
   if (!user) { S.view = 'auth'; render(); return; }
   S.view = 'loading'; render();
   setDoc(doc(db, 'users', user.uid), { nick: emailToNick(user.email), lastSeen: Date.now() }, { merge: true }).catch(onErr);
@@ -97,6 +99,8 @@ function start(user) {
   sub('wordle', collection(db, 'wordle'), (s) => { S.wordles = {}; s.forEach((d) => (S.wordles[d.id] = d.data())); });
   sub('duels', query(collection(db, 'duels'), where('date', '==', today())), (s) => { S.duels = {}; s.forEach((d) => (S.duels[d.id] = { ...d.data(), id: d.id })); });
   sub('avatars', collection(db, 'avatars'), (s) => { S.avatars = {}; s.forEach((d) => (S.avatars[d.id] = d.data())); });
+  sub('art', collection(db, 'art'), (s) => { S.art = {}; s.forEach((d) => (S.art[d.id] = { ...d.data(), id: d.id })); });
+  sub('live', query(collection(db, 'live'), where('date', '==', today())), (s) => { S.live = {}; s.forEach((d) => (S.live[d.id] = { ...d.data(), id: d.id })); onLiveUpdate(); });
   sub('spend', collection(db, 'spend'), (s) => { S.spends = []; s.forEach((d) => S.spends.push(d.data())); });
   S.subWeek = week();
   sub('challenges', query(collection(db, 'challenges'), where('week', '==', week())), (s) => { S.challenges = {}; s.forEach((d) => (S.challenges[d.id] = { ...d.data(), id: d.id })); });
@@ -116,22 +120,22 @@ function onErr(e) {
   console.error(e);
   if (e?.code === 'permission-denied') { S.denied = true; render(); }
 }
-const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop']);
+const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop', 'workshop', 'album']);
 function onData() {
-  if (S.loaded.size < 10) return;
+  if (S.loaded.size < 12) return;
   if (S.uid && !S.users[S.uid]?.ntfy) { S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
   onDuelsUpdate(); ensureExclusives();
   if (S.view === 'loading') {
     if (!surveyDone(S.uid)) startSurvey(); else S.view = 'home';
     render(); return;
   }
-  if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh) || (S.view === 'duel' && !isPlaying())) render();
+  if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh) || (S.view === 'duel' && !isPlaying()) || (S.view === 'art' && !isEditing() && document.activeElement?.tagName !== 'INPUT')) render();
 }
 
 // ---------- рендер ----------
 function render() {
   if (S.denied) return renderDenied();
-  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop }[S.view];
+  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia }[S.view];
   (v || renderHome)();
   window.scrollTo?.(0, 0);
 }
@@ -258,7 +262,8 @@ function renderHome() {
       ${tile('duels', '⚔️', 'Дуелі наживо', duelsUnlocked().ok ? dailyDuels(today()).length + ' нові сьогодні' : '🔒 з рангу «Муркотун»', duelsUnlocked().ok ? '' : 'dim')}
       ${tile('avatar', '🐱', 'Мій котик', avOf(me).name ? esc(avOf(me).name) : 'вигляд і гардероб')}
       ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
-      <div class="tile locked"><span class="ti">🎨</span><b>Малюй і вгадуй</b><span class="ts">скоро</span></div>
+      ${tile('workshop', '🎨', 'Творча майстерня', pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', pendingArt() ? 'hot' : '')}
+      ${tile('trivia', '🧹', 'Робота задарма', 'легкі питання за 1 🪙')}
       <div class="tile locked wide"><span class="ti">🧩</span><b>Дві половинки — кооперативний фінал</b><span class="ts">скоро</span></div>
     </div></div>`;
   mountCat(document.getElementById('catStage'), [me, p].filter(Boolean).map((u) => ({ uid: u, av: avOf(u) })));
@@ -571,10 +576,10 @@ function renderReward() {
 // ---------- дії ----------
 function notify(uid, title, msg) { return sendPush(S.users[uid]?.ntfy, title, msg); }
 const actions = {
-  ...duelActions, ...shopActions,
+  ...duelActions, ...shopActions, ...workshopActions, ...triviaActions,
   copyTopic: () => { const t = S.users[S.uid]?.ntfy || ''; navigator.clipboard?.writeText(t).then(() => toast('Скопійовано ✓'), () => toast(t)); },
   testPush: () => { notify(S.uid, '🐱 Мур!', 'Сповіщення працюють 💕'); toast('Надіслано — перевір ntfy'); },
-  go: (el) => { const to = el.dataset.to; recCancel(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
+  go: (el) => { const to = el.dataset.to; recCancel(); resetWorkshop(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
   logout: () => signOut(auth),
   authMode: () => { S.authMode = S.authMode === 'login' ? 'register' : 'login'; S.authErr = ''; renderAuth(); },
   pick: (el) => {
@@ -606,5 +611,5 @@ app.addEventListener('click', (e) => {
 });
 
 // ---------- спільні функції для модулів дуелей і магазину ----------
-const api = { S, db, doc, setDoc, updateDoc, arrayUnion, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
-initDuels(api); initShop(api);
+const api = { S, db, doc, getDoc, setDoc, updateDoc, arrayUnion, award, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+initDuels(api); initShop(api); initWorkshop(api); initTrivia(api);
