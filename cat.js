@@ -9,14 +9,14 @@ const GRAD = (k, u) => `<defs>
 
 // Вид збоку — під час ходьби (дивиться праворуч). Ноги з суглобами: стегно/плече + гомілка/передпліччя
 const leg = (cls, hind, dx, fill, paw) => hind
-  ? `<g class="leg ${cls} hind"><g class="up" style="transform-origin:${58 + dx}px 62px">
+  ? `<g class="leg ${cls} hind"><g class="up">
       <path d="M${46 + dx} 58 C${43 + dx} 76 ${52 + dx} 93 ${66 + dx} 93 C${76 + dx} 92 ${75 + dx} 78 ${70 + dx} 62Z" fill="${fill}"/>
-      <g class="lo" style="transform-origin:${66 + dx}px 88px">
+      <g class="lo">
         <path d="M${66 + dx} 88 L${57 + dx} 105 L${60 + dx} 116" stroke="${fill}" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <ellipse cx="${63 + dx}" cy="117.5" rx="7" ry="3.6" fill="${paw}"/></g></g></g>`
-  : `<g class="leg ${cls} fore"><g class="up" style="transform-origin:${136 + dx}px 62px">
+  : `<g class="leg ${cls} fore"><g class="up">
       <path d="M${125 + dx} 58 C${123 + dx} 74 ${126 + dx} 88 ${132 + dx} 94 C${141 + dx} 94 ${146 + dx} 78 ${145 + dx} 60Z" fill="${fill}"/>
-      <g class="lo" style="transform-origin:${134 + dx}px 89px">
+      <g class="lo">
         <path d="M${134 + dx} 89 L${136 + dx} 115" stroke="${fill}" stroke-width="8.5" fill="none" stroke-linecap="round"/>
         <ellipse cx="${139 + dx}" cy="117.5" rx="7" ry="3.6" fill="${paw}"/></g></g></g>`;
 
@@ -91,13 +91,59 @@ export function mountCat(holder) {
   if (!st.running) { st.running = true; st.last = performance.now(); requestAnimationFrame(tick); }
 }
 
+// ---- анімація через SVG-атрибут transform (однаково працює на iPhone і Android) ----
+const LEGS = [ // клас, задня?, зсув, фаза кроку (ЛЗ, ЛП, ПЗ, ПП)
+  ['lh1', true, 0, 0], ['lf1', false, 0, 0.25], ['lh2', true, -7, 0.5], ['lf2', false, -7, 0.75],
+];
+// ключові кадри [частка циклу, кут]
+const K = {
+  hindUp: [[0, -15], [0.62, 17], [0.8, 2], [1, -15]],
+  hindLo: [[0, 0], [0.6, 0], [0.72, 30], [0.88, 8], [1, 0]],
+  foreUp: [[0, -13], [0.62, 15], [0.8, 0], [1, -13]],
+  foreLo: [[0, 0], [0.6, 0], [0.7, 42], [0.86, 10], [1, 0]],
+};
+const interp = (kf, p) => { for (let i = 1; i < kf.length; i++) if (p <= kf[i][0]) { const [a, va] = kf[i - 1], [b, vb] = kf[i]; return va + (vb - va) * ((p - a) / (b - a)); } return kf[kf.length - 1][1]; };
+const wave = (t) => (1 - Math.cos(2 * Math.PI * t)) / 2; // 0→1→0
+const STEP = 0.9; // секунд на повний крок
+const REDUCED = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const rot = (el, a, x, y, extra = '') => el && el.setAttribute('transform', `${extra}rotate(${a.toFixed(2)} ${x} ${y})`);
+
+function animate(dt) {
+  if (REDUCED) return;
+  const r = st.r, T = (st.t += dt);
+  if (st.mode === 'walk') {
+    st.ph = (st.ph + dt / STEP) % 1;
+    for (const L of r.legs) {
+      const p = (st.ph + L.off) % 1;
+      rot(L.up, interp(L.hind ? K.hindUp : K.foreUp, p), L.ux, 62);
+      rot(L.lo, interp(L.hind ? K.hindLo : K.foreLo, p), L.lx, L.ly);
+    }
+    const s = wave(st.ph * 2);
+    rot(r.torso, 0.6 * s, 100, 62, `translate(0 ${(1.2 * s).toFixed(2)}) `);
+    rot(r.head, -1 * s, 150, 50, `translate(0 ${(0.8 * s).toFixed(2)}) `);
+  }
+  rot(r.tail, -4 + 13 * wave(T / 1.8), 44, 58);
+  // поза «сидить»
+  rot(r.tail2, -14 * wave(T / 2.4), 92, 118);
+  const bp = (T % 4) / 4, blink = bp > 0.93 && bp < 0.99 ? 0.1 : 1;
+  r.eyes?.setAttribute('transform', `translate(0 ${45 * (1 - blink)}) scale(1 ${blink})`);
+  rot(r.face, st.mode === 'look' ? -7 * wave(T / 2.2) : 0, 65, 69);
+  if (st.mode === 'purr') { const q = wave(T / 0.18); r.body?.setAttribute('transform', `translate(${(-65 * 0.012 * q).toFixed(2)} ${(121 * 0.01 * q).toFixed(2)}) scale(${(1 + 0.012 * q).toFixed(4)} ${(1 - 0.01 * q).toFixed(4)})`); }
+  else r.body?.removeAttribute('transform');
+}
+
 function create() {
   const el = document.createElement('div');
   el.className = 'cat-stage';
   el.innerHTML = `<div class="kitty walk" data-dir="1"><div class="pose side">${SIDE}</div><div class="pose front">${FRONT}</div><div class="bubble">Мррр… 💕</div></div>`;
   const k = el.querySelector('.kitty');
   k.addEventListener('click', (e) => { e.stopPropagation(); pet(); });
-  return { el, k, x: rand(0, 120), dir: 1, mode: 'walk', target: 0, until: 0, running: false, first: true };
+  const q = (c) => el.querySelector(c);
+  const r = {
+    legs: LEGS.map(([c, hind, dx, off]) => ({ up: q(`.${c} .up`), lo: q(`.${c} .lo`), hind, off, ux: (hind ? 58 : 136) + dx, lx: (hind ? 66 : 134) + dx, ly: hind ? 88 : 89 })),
+    torso: q('.c-torso'), head: q('.c-head'), tail: q('.c-tail'), tail2: q('.c-tail2'), eyes: q('.eyes-open'), face: q('.c-face'), body: q('.c-body'),
+  };
+  return { el, k, r, x: rand(0, 120), dir: 1, mode: 'walk', target: 0, until: 0, running: false, first: true, t: 0, ph: 0 };
 }
 
 function setMode(m, dur = 0) { st.mode = m; st.until = performance.now() + dur; st.k.className = 'kitty ' + m; }
@@ -123,6 +169,7 @@ function tick(now) {
   st.k.style.transform = `translateX(${st.x}px)`;
   st.k.dataset.dir = st.dir;
   st.k.dataset.side = st.x > max / 2 ? 'r' : 'l';
+  animate(dt);
   requestAnimationFrame(tick);
 }
 
