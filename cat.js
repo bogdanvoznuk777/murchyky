@@ -52,11 +52,11 @@ const K = {
 const interp = (kf, p) => { for (let i = 1; i < kf.length; i++) if (p <= kf[i][0]) { const [a, va] = kf[i - 1], [b, vb] = kf[i]; return va + (vb - va) * ((p - a) / (b - a)); } return kf[kf.length - 1][1]; };
 const wave = (t) => (1 - Math.cos(2 * Math.PI * t)) / 2; // 0→1→0
 const STEP = 0.9; // секунд на повний крок
-const REDUCED = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const rot = (el, a, x, y, extra = '') => el && el.setAttribute('transform', `${extra}rotate(${a.toFixed(2)} ${x} ${y})`);
 
 function animate(st, dt) {
-  if (REDUCED || !st.r) return;
+  // Не вимикаємо кроки при «Зменшенні руху» на iPhone: котик однаково йде екраном, тож без кроків він «ковзає»
+  if (!st.r) return;
   const r = st.r, T = (st.t += dt);
   if (st.mode === 'walk') {
     st.ph = (st.ph + dt / STEP) % 1;
