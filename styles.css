@@ -1,0 +1,122 @@
+:root {
+  --bg1: #ffe3ee; --bg2: #fff6f9; --pink: #ff5c9a; --pink2: #ff8fbb; --deep: #c2185b;
+  --text: #4a2c3a; --muted: #9a7383; --card: #ffffffd9; --him: #7b8fae; --her: #ff5c9a;
+  --ok: #2fb67c; --mid: #f2b84b; --no: #c9b3bd; --r: 20px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--text);
+  background: radial-gradient(circle at 20% 0%, #ffd0e2 0, transparent 45%), radial-gradient(circle at 100% 30%, #ffe9d6 0, transparent 40%), linear-gradient(180deg, var(--bg1), var(--bg2));
+  background-attachment: fixed;
+}
+body::before { /* сердечка на фоні */
+  content: ''; position: fixed; inset: 0; pointer-events: none; opacity: .35; z-index: -1;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Ctext x='10' y='30' font-size='14' fill='%23ff9ab8'%3E%E2%9D%A4%3C/text%3E%3Ctext x='70' y='90' font-size='10' fill='%23ffb3cc'%3E%E2%9D%A4%3C/text%3E%3C/svg%3E");
+}
+#app { max-width: 520px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 24px); }
+h1, h2, h3, .logo, .big { font-family: 'Comfortaa', 'Nunito', sans-serif; }
+h2 { margin: 0; font-size: 20px; } h3 { margin: 6px 0 12px; font-size: 18px; }
+.muted { color: var(--muted); } .small { font-size: 13px; } .center-t { text-align: center; }
+.big { font-size: 22px; font-weight: 700; }
+.card { background: var(--card); border-radius: var(--r); padding: 16px; margin: 12px 0; box-shadow: 0 6px 24px #d4588a1f; backdrop-filter: blur(6px); }
+.center { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.page > .center:first-child { min-height: 70vh; justify-content: center; }
+#app > .center { min-height: 80vh; justify-content: center; }
+.btn { border: 0; border-radius: 999px; padding: 14px 22px; font: 700 16px 'Nunito', sans-serif; color: #fff; cursor: pointer;
+  background: linear-gradient(135deg, var(--pink), var(--pink2)); box-shadow: 0 6px 16px #ff5c9a55; transition: transform .1s; }
+.btn:active { transform: scale(.96); }
+.btn.ghost { background: #fff; color: var(--deep); box-shadow: 0 2px 10px #d4588a22; }
+.btn.sm { padding: 10px 14px; font-size: 14px; }
+.link { background: none; border: 0; color: var(--deep); font: 600 14px 'Nunito', system-ui, sans-serif; padding: 10px; cursor: pointer; }
+input, textarea { width: 100%; border: 2px solid #ffd3e3; border-radius: 14px; padding: 14px; font: 16px 'Nunito', sans-serif; color: var(--text); background: #fff; outline: none; margin: 6px 0; resize: vertical; }
+input:focus, textarea:focus { border-color: var(--pink2); }
+.err { color: var(--deep); font-weight: 700; font-size: 14px; }
+.row { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.row3 { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px); transform: translateX(-50%); background: var(--text); color: #fff; padding: 12px 18px; border-radius: 999px; font-weight: 700; z-index: 99; animation: pop .25s; max-width: 90vw; text-align: center; }
+@keyframes pop { from { transform: translate(-50%, 20px); opacity: 0; } }
+.heart { color: var(--pink); display: inline-block; animation: beat 1.4s infinite; }
+@keyframes beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } }
+.cat.bob { animation: bob 3s ease-in-out infinite; } @keyframes bob { 50% { transform: translateY(-6px) rotate(-2deg); } }
+
+/* вхід */
+.auth { text-align: center; padding-top: 6vh; }
+.logo { font-size: 40px; margin: 6px 0 0; color: var(--deep); }
+.sub { margin: 4px 0 16px; color: var(--muted); }
+.auth form { display: flex; flex-direction: column; gap: 6px; text-align: left; }
+
+/* шапки */
+.top { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; text-align: center; margin-bottom: 6px; }
+.back { width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; font-size: 20px; color: var(--deep); box-shadow: 0 2px 10px #d4588a22; cursor: pointer; }
+.hello { display: flex; align-items: center; gap: 10px; }
+.hello .rk { margin-left: auto; width: 46px; height: 46px; border-radius: 50%; border: 0; background: #fff; font-size: 22px; box-shadow: 0 2px 10px #d4588a22; cursor: pointer; }
+.note { background: #fff3c9; border-radius: 14px; padding: 12px; margin: 12px 0; font-size: 14px; }
+.alert { width: 100%; border: 0; border-radius: 16px; padding: 14px; background: #fff; color: var(--deep); font: 700 15px 'Nunito', system-ui, sans-serif; box-shadow: 0 0 0 2px var(--pink2); cursor: pointer; animation: glow 2s infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 4px #ff8fbb88; } }
+
+/* табло */
+.vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 10px 0; }
+.vsx { font: 800 18px 'Comfortaa', system-ui, sans-serif; color: var(--muted); }
+.pl { text-align: center; position: relative; padding: 12px 4px; border-radius: 16px; }
+.pl.lead { background: #fff; box-shadow: 0 4px 16px #d4588a22; }
+.pn { font-weight: 800; } .pp { font: 800 40px 'Comfortaa', system-ui, sans-serif; }
+.pl.him .pp { color: var(--him); } .pl.her .pp { color: var(--her); }
+.crown { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 22px; }
+.reward { width: 100%; border: 0; background: #fff0f6; border-radius: 14px; padding: 12px; font: 14px 'Nunito', system-ui, sans-serif; color: var(--text); text-align: left; cursor: pointer; }
+
+/* плитки */
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.tile { border: 0; background: var(--card); border-radius: var(--r); padding: 16px 12px; text-align: left; display: flex; flex-direction: column; gap: 4px; font: 15px 'Nunito', system-ui, sans-serif; color: var(--text); box-shadow: 0 6px 20px #d4588a1a; cursor: pointer; }
+.tile:active { transform: scale(.97); }
+.tile .ti { font-size: 28px; } .tile .ts { font-size: 12px; color: var(--muted); }
+.tile.locked { opacity: .55; cursor: default; } .tile.wide { grid-column: span 2; }
+
+/* опитування та квіз */
+.survey-head { display: flex; gap: 10px; align-items: center; }
+.bar { height: 8px; background: #ffd9e7; border-radius: 99px; overflow: hidden; margin: 12px 0 6px; }
+.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pink), var(--pink2)); border-radius: 99px; transition: width .3s; }
+.qcard h3 { font-size: 20px; line-height: 1.3; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { border: 2px solid #ffd3e3; background: #fff; border-radius: 14px; padding: 14px; font: 600 16px 'Nunito', system-ui, sans-serif; color: var(--text); text-align: left; cursor: pointer; }
+.opt.sel, .sc.sel { border-color: var(--pink); background: #ffeaf2; color: var(--deep); }
+.scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sc { border: 2px solid #ffd3e3; background: #fff; border-radius: 12px; padding: 12px 0; font: 800 18px 'Nunito', system-ui, sans-serif; color: var(--text); cursor: pointer; }
+.who { font-size: 13px; font-weight: 700; } .who.him { color: var(--him); } .who.her { color: var(--her); }
+.rv > div { margin: 3px 0; }
+.pts { font-weight: 800; font-size: 14px; white-space: nowrap; } .pts.ok { color: var(--ok); } .pts.no { color: #b0889a; } .pts.wait { color: #d49a1a; }
+
+/* слово дня */
+.grid { display: grid; gap: 6px; justify-content: center; margin: 14px 0; }
+.wrow { display: grid; grid-template-columns: repeat(5, 54px); gap: 6px; }
+.cell { height: 54px; border-radius: 12px; background: #fff; border: 2px solid #ffd3e3; display: grid; place-items: center; font: 800 26px 'Nunito', system-ui, sans-serif; text-transform: uppercase; }
+.cell.typed { border-color: var(--pink2); animation: pop2 .12s; } @keyframes pop2 { 50% { transform: scale(1.08); } }
+.cell.s2 { background: var(--ok); border-color: var(--ok); color: #fff; }
+.cell.s1 { background: var(--mid); border-color: var(--mid); color: #fff; }
+.cell.s0 { background: var(--no); border-color: var(--no); color: #fff; }
+.kb { margin-top: 10px; }
+.krow { display: flex; gap: 4px; justify-content: center; margin: 5px 0; }
+.key { flex: 1; max-width: 40px; height: 48px; border: 0; border-radius: 8px; background: #fff; font: 700 17px 'Nunito', system-ui, sans-serif; color: var(--text); box-shadow: 0 2px 0 #f2c4d6; padding: 0; cursor: pointer; }
+.key.wide { max-width: 56px; flex: 1.5; background: #ffe0ec; }
+.key.k2 { background: var(--ok); color: #fff; } .key.k1 { background: var(--mid); color: #fff; } .key.k0 { background: var(--no); color: #fff; }
+
+/* челенджі */
+.sec { margin: 18px 4px 4px; font-size: 16px; }
+.cht { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+.ch .btn { margin-top: 4px; }
+.file { display: block; text-align: center; border: 2px dashed var(--pink2); border-radius: 14px; padding: 14px; font-weight: 700; color: var(--deep); cursor: pointer; }
+.file input { display: none; }
+.ph { width: 100%; border-radius: 14px; margin: 8px 0; }
+.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.thumb { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; border: 3px solid #fff; }
+.thumb.him { border-color: var(--him); } .thumb.her { border-color: var(--her); }
+
+/* ранги */
+.rcs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rc { text-align: center; margin: 0; } .rc .big { font-size: 34px; }
+.rc.him b { color: var(--him); } .rc.her b { color: var(--her); }
+.ladder > div { padding: 6px 0; border-bottom: 1px dashed #ffd3e3; } .ladder > div:last-child { border: 0; }
+.hist { display: flex; justify-content: space-between; align-items: center; } .right { text-align: right; }
+@media (max-width: 360px) { .wrow { grid-template-columns: repeat(5, 46px); } .cell { height: 46px; } }
+
+button, input, textarea { font-family: 'Nunito', system-ui, -apple-system, sans-serif; }
