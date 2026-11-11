@@ -45,17 +45,24 @@ function repIndex(d, uid) {
 const tier = (d, uid) => (repIndex(d, uid) === 0 ? FULL : REPEAT);
 const pts = (id, uid, amount, reason) => A.setDoc(A.doc(A.db, 'points', id), { uid, amount, reason, date: A.today(), week: A.week(), ts: Date.now() });
 
+// Нарахування за дуель. Захист від повторного запуску: раніше кожен запис балів
+// знову запускав нарахування (коло, що роздувало кількість записів у Firebase).
+const settling = new Set();
 export async function settle(d) {
   const o = outcome(d); if (!o) return;
-  const same = d.final && d.final.winner === o.winner;
-  if (!same) await A.updateDoc(dRef(d.id), { final: { winner: o.winner, at: Date.now() } });
-  if (same && d.final.paid) return;
-  for (const uid of [d.from, d.to]) {
-    const t = tier(d, uid), extra = o.winner === null ? t.draw - t.part : o.winner === uid ? t.win - t.part : 0;
-    await pts(`d_${d.id}_${uid}_p`, uid, t.part, 'Дуель');
-    await pts(`d_${d.id}_${uid}_w`, uid, extra, 'Дуель');
-  }
-  await A.updateDoc(dRef(d.id), { 'final.paid': true });
+  if (d.final && d.final.winner === o.winner && d.final.paid) return;
+  if (settling.has(d.id)) return;
+  settling.add(d.id);
+  try {
+    const w = [];
+    for (const uid of [d.from, d.to]) {
+      const t = tier(d, uid), extra = o.winner === null ? t.draw - t.part : o.winner === uid ? t.win - t.part : 0;
+      w.push(pts(`d_${d.id}_${uid}_p`, uid, t.part, 'Дуель'), pts(`d_${d.id}_${uid}_w`, uid, extra, 'Дуель'));
+    }
+    w.push(A.updateDoc(dRef(d.id), { final: { winner: o.winner, at: Date.now(), paid: true } }));
+    await Promise.all(w);
+  } catch (e) { console.error('settle', e); }
+  finally { settling.delete(d.id); }
 }
 
 // ---------- дії ----------
@@ -109,7 +116,7 @@ export function renderDuels() {
     ${done.length ? `<h3 class="sec">Результати за сьогодні</h3>${done.map(row).join('')}` : ''}</div>`;
 }
 
-let running = null, stallT = 0, countT = 0; // поточна одночасна гра (щоб не перемальовувати під час гри)
+let running = null, stallT = 0, countT = 0, waitT = 0; // поточна одночасна гра (щоб не перемальовувати під час гри)
 export const isPlaying = () => !!running;
 
 export function renderDuel() {
@@ -129,7 +136,7 @@ export function renderDuel() {
   const myRes = d.res?.[me()];
   if (d.status === 'invited' && d.from === me() && !d.async) {
     const waited = Date.now() - d.createdAt, left = Math.max(0, Math.ceil((WAIT_MS - waited) / 1000));
-    setTimeout(() => { if (S().view === 'duel' && S().duelId === d.id && !running) renderDuel(); }, left > 0 ? 1000 : 5000);
+    clearTimeout(waitT); waitT = setTimeout(() => { if (S().view === 'duel' && S().duelId === d.id && !running) renderDuel(); }, left > 0 ? 1000 : 5000);
     return out(`<div class="card center">${A.catSVG(70, 'bob')}<p>Чекаємо, поки ${pn} прийме виклик…</p><p class="muted small">Сповіщення надіслано.</p>
       ${left > 0 ? `<p class="muted small">${canAsync(g) ? `Зіграти без партнера можна через ${left} с` : ''}</p>` : canAsync(g) ? `<button class="btn" data-a="dAsync" data-id="${d.id}">Зіграти зараз — ${pn} зіграє пізніше</button>` : '<p class="muted small">Ця гра лише наживо.</p>'}
       <button class="link" data-a="dCancel" data-id="${d.id}">Скасувати виклик</button></div>`);
@@ -165,10 +172,10 @@ async function runSim(d, g, area) {
   running = null;
   if (S().duelId !== d.id) return; // гравець пішов з екрана
   const res = { score: r.score, at: Date.now() }; if (r.word !== undefined) res.word = r.word;
-  await A.updateDoc(dRef(d.id), { ['res.' + me()]: res });
+  // не чекаємо підтвердження сервера: дані застосовуються локально одразу, а гра не «зависає» без зв'язку
+  A.updateDoc(dRef(d.id), { ['res.' + me()]: res }).catch((e) => console.error(e));
   const fresh = S().duels[d.id] || d;
-  await pts(`d_${d.id}_${me()}_p`, me(), tier(fresh, me()).part, 'Дуель');
-  await settle(S().duels[d.id] || fresh);
+  pts(`d_${d.id}_${me()}_p`, me(), tier(fresh, me()).part, 'Дуель').catch((e) => console.error(e));
   renderDuel();
 }
 
@@ -213,6 +220,7 @@ export const duelActions = {
   dVoid: (el) => A.safe(async () => {
     const d = S().duels[el.dataset.id], p = d.from === me() ? d.to : d.from;
     await A.updateDoc(dRef(d.id), { [`res.${p}.void`]: true, 'final.paid': false });
+    settling.delete(d.id);
   }),
 };
 

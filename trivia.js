@@ -160,7 +160,6 @@ export const _test = { FACTS, GEN, HARD };
 
 // ---------- екран ----------
 const earnedToday = () => A.S.points.filter((p) => p.uid === A.S.uid && p.reason === 'Робота задарма' && p.date === A.today()).reduce((a, p) => a + p.amount, 0);
-const countToday = () => A.S.points.filter((p) => p.uid === A.S.uid && p.reason === 'Робота задарма' && p.date === A.today()).length;
 export function renderTrivia() {
   const st = S().tv || (S().tv = { q: nextQuestion(), streak: 0, done: 0, right: 0, n: 0 });
   const earned = earnedToday(), capped = earned >= DAY_CAP;
@@ -171,18 +170,19 @@ export function renderTrivia() {
     <div class="card ${st.q.hard ? 'tv-hard' : ''}">${st.q.hard ? `<div class="hard-badge">💎 Складне питання · +${HARD_BONUS}</div>` : ''}<h3>${A.esc(st.q.q)}</h3><div class="g-opts" id="tvO">${st.q.opts.map((o, i) => `<button class="opt" data-a="tvAns" data-i="${i}">${A.esc(o)}</button>`).join('')}</div></div></div>`;
 }
 let busy = false;
-async function answer(i) {
+function answer(i) {
   if (busy) return; busy = true;
   const st = S().tv, ok = st.q.opts[i] === st.q.right, btns = [...document.querySelectorAll('#tvO .opt')];
   btns.forEach((b, k) => { if (st.q.opts[k] === st.q.right) b.classList.add('good'); else if (k === i) b.classList.add('bad'); });
   st.done++;
   if (ok) {
     st.right++; st.streak++;
-    const base = A.today() + '_' + A.S.uid + '_' + (countToday() + 1) + '_' + Date.now().toString(36);
-    const pay = async (tag, amt, msg) => { const left = DAY_CAP - earnedToday(); if (left <= 0) return; await A.award(tag + base, A.S.uid, Math.min(amt, left), 'Робота задарма'); if (msg) A.toast(msg); };
-    await pay('tv_', PER);
-    if (st.q.hard) await pay('tvh_', HARD_BONUS, `💎 Складне питання! +${HARD_BONUS}`);
-    if (st.streak % STREAK === 0) await pay('tvb_', STREAK_BONUS, `🔥 ${STREAK} поспіль! +${STREAK_BONUS}`);
+    // Один документ на день (лічильник), а не окремий запис на кожну відповідь; не чекаємо відповіді сервера
+    let add = PER, msg = '';
+    if (st.q.hard) { add += HARD_BONUS; msg = `💎 Складне питання! +${HARD_BONUS}`; }
+    if (st.streak % STREAK === 0) { add += STREAK_BONUS; msg = `🔥 ${STREAK} поспіль! +${STREAK_BONUS}`; }
+    const left = DAY_CAP - earnedToday(), amt = Math.min(add, left);
+    if (amt > 0) { A.addPoints(`tvday_${A.today()}_${A.S.uid}`, A.S.uid, amt, 'Робота задарма'); if (msg) A.toast(msg); }
   } else st.streak = 0;
   setTimeout(() => { st.q = nextQuestion(); busy = false; if (S().view === 'trivia') renderTrivia(); }, ok ? 450 : 1100);
 }

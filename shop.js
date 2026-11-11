@@ -24,11 +24,12 @@ export function vitrine() { return shuffle(buyable(), 'vit' + A.week()).slice(0,
 const priceOf = (id) => (vitrine().includes(id) ? Math.round((ITEMS[id].price * 0.7) / 10) * 10 : ITEMS[id].price);
 
 // Ексклюзиви за перемоги в сезонах додаються автоматично
+let exBusy = false;
 export function ensureExclusives() {
-  const uid = me(); if (!uid || !S().loaded.has('avatars')) return;
+  const uid = me(); if (!uid || !S().loaded.has('avatars') || exBusy) return;
   const wins = seasonWins(uid), owned = avOf(uid).owned;
   const add = Object.entries(ITEMS).filter(([id, it]) => it.wins && wins >= it.wins && !owned.includes(id)).map(([id]) => id);
-  if (add.length) A.setDoc(avRef(uid), { owned: A.arrayUnion(...add) }, { merge: true }).catch(() => {});
+  if (add.length) { exBusy = true; A.setDoc(avRef(uid), { owned: A.arrayUnion(...add) }, { merge: true }).catch(() => {}).finally(() => (exBusy = false)); }
 }
 
 // ---------- екран «Мій котик» ----------
@@ -59,7 +60,7 @@ export function renderShop() {
     const tryAv = { ...av, owned: [...av.owned, id], eq: { ...av.eq, [it.slot]: id } };
     const prev = it.slot === 'title' ? `<div class="title-badge">${A.esc(it.name)}</div>` : portrait(tryAv, 92);
     const btns = it.wins ? `<span class="muted small">${has ? '✓ Твій' : `За ${it.wins} перемог${it.wins > 1 ? 'и' : 'у'} в сезонах (${wins}/${it.wins})`}</span>`
-      : `${has ? '<span class="own">✓ Є</span>' : `<button class="btn sm" data-a="buy" data-id="${id}" ${bal < pr ? 'disabled' : ''}>Купити</button>`}${p ? `<button class="btn ghost sm" data-a="gift" data-id="${id}" ${bal < pr ? 'disabled' : ''}>🎁</button>` : ''}`;
+      : `${has ? '<span class="own">✓ Є</span>' : `<button class="btn sm ${bal < pr ? 'off' : ''}" data-a="buy" data-id="${id}">Купити</button>`}${p ? `<button class="btn ghost sm ${bal < pr ? 'off' : ''}" data-a="gift" data-id="${id}">🎁</button>` : ''}`;
     return `<div class="shop-c ${r.c}"><div class="sc-prev">${prev}</div><b>${A.esc(it.name)}</b><div class="muted small">${r.n}</div>
       <div class="price">${it.wins ? '🏆' : `${sale ? `<s>${it.price}</s> ` : ''}<b>${pr}</b> 🪙`}</div><div class="sc-btn">${btns}</div></div>`;
   };
@@ -74,7 +75,7 @@ export function renderShop() {
 
 async function purchase(id, forUid) {
   const it = ITEMS[id], pr = priceOf(id);
-  if (wallet() < pr) return A.toast('Недостатньо монет');
+  if (wallet() < pr) return A.toast(`Не вистачає монет: потрібно ${pr}, у тебе ${wallet()}`);
   if (avOf(forUid).owned.includes(id)) return A.toast(forUid === me() ? 'Вже є' : 'У партнера це вже є');
   await A.setDoc(A.doc(A.db, 'spend', `${me()}_${id}_${Date.now()}`), { uid: me(), item: id, price: pr, for: forUid, ts: Date.now(), week: A.week() });
   const upd = { owned: A.arrayUnion(id) };

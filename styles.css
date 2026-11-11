@@ -273,3 +273,5 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 
 .tv-hard { box-shadow: 0 0 0 2px #b38cff, 0 0 22px #b38cff66; }
 .hard-badge { display: inline-block; background: linear-gradient(135deg, #b38cff, #7ad3ff); color: #fff; font-weight: 800; font-size: 13px; padding: 4px 12px; border-radius: 999px; margin-bottom: 6px; }
+
+.btn.off { opacity: .45; }

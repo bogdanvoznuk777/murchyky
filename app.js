@@ -1,7 +1,7 @@
 // ===== Мурчики: сезон кохання — основна логіка =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, arrayUnion } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, arrayUnion, increment } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 import { mountCat } from './cat.js';
 import { initDuels, renderDuels, renderDuel, duelActions, onDuelsUpdate, isPlaying, unlocked as duelsUnlocked, dailyDuels } from './duels.js';
@@ -41,10 +41,18 @@ function toast(msg) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
   document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
 }
+// Обгортка для дій із записом. Якщо сервер не відповідає 6 с (немає інтернету або вичерпано денний ліміт Firebase),
+// не блокуємо гру: запис лишається в черзі, а кнопки знову працюють.
 async function safe(fn) {
   if (S.busy) return; S.busy = true;
+  let slow = false; const t = setTimeout(() => { slow = true; S.busy = false; toast('Сервер не відповідає — дія збережеться, щойно зʼявиться звʼязок'); }, 6000);
   try { await fn(); } catch (e) { console.error(e); toast('Помилка: ' + (e.code || e.message || 'невідома')); }
-  finally { S.busy = false; }
+  finally { clearTimeout(t); if (!slow) S.busy = false; }
+}
+// Додати бали до лічильника (один документ, без очікування сервера)
+function addPoints(id, uid, amount, reason) {
+  if (!uid || !(amount > 0)) return;
+  setDoc(doc(db, 'points', id), { uid, reason, date: today(), week: week(), ts: Date.now(), amount: increment(amount) }, { merge: true }).catch((e) => console.error(e));
 }
 function award(id, uid, amount, reason) {
   if (!uid || !(amount > 0)) return Promise.resolve();
@@ -123,7 +131,7 @@ function onErr(e) {
 const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop', 'workshop', 'album']);
 function onData() {
   if (S.loaded.size < 12) return;
-  if (S.uid && !S.users[S.uid]?.ntfy) { S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
+  if (S.uid && !S.users[S.uid]?.ntfy && !S.ntfyAsked) { S.ntfyAsked = true; S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
   onDuelsUpdate(); ensureExclusives();
   if (S.view === 'loading') {
     if (!surveyDone(S.uid)) startSurvey(); else S.view = 'home';
@@ -611,5 +619,5 @@ app.addEventListener('click', (e) => {
 });
 
 // ---------- спільні функції для модулів дуелей і магазину ----------
-const api = { S, db, doc, getDoc, setDoc, updateDoc, arrayUnion, award, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+const api = { S, db, doc, getDoc, setDoc, updateDoc, arrayUnion, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
 initDuels(api); initShop(api); initWorkshop(api); initTrivia(api);
