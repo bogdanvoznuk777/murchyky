@@ -1,7 +1,7 @@
 // ===== «Дві половинки» — кооперативний 3D-квест (екрани, запрошення, нагороди) =====
 import * as N from './coopnet.js';
 import { CHAPTERS, ALL_LEVELS, LEVEL_COINS, levelById } from './levels.js';
-import { ITEMS } from './avatar.js';
+import { ITEMS, FURS } from './avatar.js';
 
 let A = null, root = null, game = null, prog = {}, pres = {}, sess = null, view = 'map', ctlCleanup = null, visHandler = null, awarded = new Set();
 let gameSubs = [], partnerVoice = false, countT = 0, timerT = 0, lastResN = 0, ready = false, gyro = null;
@@ -158,6 +158,7 @@ async function startGame(s) {
   const lvl = levelById(s.lvl); if (!lvl) return;
   view = 'game';
   if (lvl.ch === 2) return startLightGame(s, lvl);
+  if (lvl.ch === 3) return startGardenGame(s, lvl);
   N.setPresence({ v: 'play', voice: N.voice.on });
   const idx = ALL_LEVELS.findIndex((l) => l.id === lvl.id);
   const myAxis = (idx % 2 === 0) === isHost() ? 'x' : 'z';
@@ -212,6 +213,34 @@ async function startLightGame(s, lvl) {
   });
   game.n = s.n; game.lvl = lvl; window.__coopGame = game;
   if (N.now() > s.at + 1000) { const [p0, w0, d0] = await Promise.all([N.once('g/pos'), N.once('g/w'), N.once('g/dr')]); game?.restore(p0, w0, d0); }
+  clearInterval(timerT); timerT = setInterval(tick, 250); tick();
+}
+// Розділ 3 «Сад»: два котики разом; ролі A/B (хто бачить який місток) міняються на кожному рівні
+const furHex = (uid) => { const f = FURS[A.S.avatars[uid]?.fur] || null; const c = f?.g?.[1]; return c ? parseInt(c.replace('#', ''), 16) : null; };
+async function startGardenGame(s, lvl) {
+  N.setPresence({ v: 'play', voice: N.voice.on });
+  const idx = ALL_LEVELS.findIndex((l) => l.id === lvl.id);
+  const role = (idx % 2 === 0) === isHost() ? 'A' : 'B';
+  A.app.innerHTML = hud(lvl, 'light', '');
+  root = A.app.firstElementChild; root.addEventListener('click', onClick);
+  paintVoice();
+  const { startGarden } = await import('./garden.js');
+  if (view !== 'game' || sess?.n !== s.n) return;
+  const has = (ch) => lvl.grid.some((r) => r.includes(ch));
+  const tips = ['🐾 Твій котик — з рожевою стрілкою.', has('a') || has('b') || has('c') || has('d') ? 'Ворота відчинені, поки хтось стоїть на плиті того ж кольору.' : '', has('x') ? 'Золоті ваги: станьте на обидві одночасно — ворота відчиняться назавжди.' : '', has('1') || has('2') ? 'Деякі містки бачить лише партнер — питай дорогу!' : '', has('z') ? 'Бджоли кусаються 🐝' : '', 'Фініш — обидва в альтанці 💞'];
+  game = startGarden({
+    holder: document.getElementById('gStage'), ctlEl: document.getElementById('gCtl'), grid: lvl.grid, role, isHost: isHost(), at: s.at, now: N.now,
+    colMe: furHex(me()), colP: furHex(P()) === furHex(me()) ? 0xe2a6c8 : furHex(P()), hint: tips.filter(Boolean).join(' '),
+    send: (k, v) => N.set('g/' + k, v),
+    listen: (k, cb) => N.listen('g/' + k, cb),
+    onWin: (r) => endLevel(s, r),
+    onFall: (kind, mine) => { if (mine) navigator.vibrate?.(80); flash(mine ? (kind === 'bee' ? 'Ай! Бджола 🐝 Назад до квітки' : 'Плюх! 💦 Назад до квітки') : 'Ой! Партнер повертається до квітки 🌸'); },
+    onFish: () => flash('Рибка! 🐟'),
+    onLatch: () => flash('Ваги зрівноважено! Ворота відчинено ✨'),
+    flash,
+  });
+  game.n = s.n; game.lvl = lvl; window.__coopGame = game;
+  if (N.now() > s.at + 1000) { const [p0, f0, l0] = await Promise.all([N.once('g/p_' + role), N.once('g/f'), N.once('g/lt')]); game?.restore(p0, f0, l0); }
   clearInterval(timerT); timerT = setInterval(tick, 250); tick();
 }
 function flash(t) { const o = document.getElementById('gOver'); if (!o || o.dataset.hold) return; o.innerHTML = `<div class="g-flash">${t}</div>`; clearTimeout(o._t); o._t = setTimeout(() => { if (!o.dataset.hold) o.innerHTML = ''; }, 1300); }

@@ -272,7 +272,7 @@ function renderHome() {
       ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
       ${tile('workshop', '🎨', 'Творча майстерня', !wsUnlocked().ok ? '🔒 з рангу «Котик-романтик»' : pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', !wsUnlocked().ok ? 'dim' : pendingArt() ? 'hot' : '')}
       ${tile('trivia', '🧹', 'Робота задарма', 'питання за 🪙 · 💎 +50')}
-      ${tile('coop', '🧩', 'Дві половинки — 3D-квест удвох', 'Шкатулка · Маяк · Сад — легендарні нагороди', 'wide')}
+      ${tile('coop', '🧩', 'Дві половинки — 3D-квест удвох', coopUnlocked().ok ? 'Шкатулка · Маяк · Сад — легендарні нагороди' : '🔒 з рангу «Королівська висловуха»', coopUnlocked().ok ? 'wide' : 'wide dim')}
     </div></div>`;
   mountCat(document.getElementById('catStage'), [me, p].filter(Boolean).map((u) => ({ uid: u, av: avOf(u) })));
 }
@@ -583,7 +583,17 @@ function renderReward() {
 
 // «Дві половинки» завантажується лише при вході (3D-бібліотека не гальмує решту гри)
 let coopMod = null;
-function renderCoop() { import('./coop.js').then((m) => { coopMod = m; if (S.view === 'coop') m.enterCoop(api); }).catch((e) => { console.error(e); toast('Не вдалося завантажити гру'); S.view = 'home'; render(); }); }
+const COOP_UNLOCK = RANKS.find((r) => r.name === 'Королівська висловуха').min;
+function coopUnlocked() { const t = totals().all, p = pUid(); return { ok: !!p && (t[S.uid] || 0) >= COOP_UNLOCK && (t[p] || 0) >= COOP_UNLOCK, mine: t[S.uid] || 0, his: p ? t[p] || 0 : 0 }; }
+function renderCoop() {
+  const u = coopUnlocked();
+  if (!u.ok) {
+    const row = (n, v) => `<div class="lockrow"><b>${esc(n)}</b><div class="bar"><i style="width:${Math.min(100, (v / COOP_UNLOCK) * 100)}%"></i></div>${v}/${COOP_UNLOCK}</div>`;
+    app.innerHTML = `<div class="page">${top('Дві половинки')}<div class="card center">${catSVG(90)}<h3>Відкривається з рангу «Королівська висловуха» 👑</h3>
+      <p class="muted">Великий 3D-квест удвох. Обом гравцям потрібно щонайменше ${COOP_UNLOCK} балів.</p>${row('Ти', u.mine)}${row(nameOf(pUid()), u.his)}</div></div>`;
+    return;
+  }
+  import('./coop.js').then((m) => { coopMod = m; if (S.view === 'coop') m.enterCoop(api); }).catch((e) => { console.error(e); toast('Не вдалося завантажити гру'); S.view = 'home'; render(); }); }
 
 // ---------- дії ----------
 function notify(uid, title, msg) { return sendPush(S.users[uid]?.ntfy, title, msg); }
