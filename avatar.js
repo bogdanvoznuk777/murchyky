@@ -81,9 +81,10 @@ export const ITEMS = {
   x_cup: { slot: 'title', name: '🏆 Чемпіон сезону', price: 0, wins: 1 },
   x_crown: { slot: 'head', name: 'Корона чемпіона', price: 0, wins: 3, f: `<path d="M44 17 L48 -2 L57 9 L65 -6 L73 9 L82 -2 L86 17Z" fill="#ffcf33" stroke="#c99400" stroke-width="1.6"/><circle cx="65" cy="10" r="3.4" fill="#e53950"/><circle cx="53" cy="12" r="2.4" fill="#43a3e0"/><circle cx="77" cy="12" r="2.4" fill="#43a3e0"/>${STAR(65, -1, 3, '#fff3b0')}`, s: `<path d="M155 25 L156 7 L163 16 L167 3 L172 15 L178 6 L180 22Z" fill="#ffcf33" stroke="#c99400" stroke-width="1.3"/><circle cx="167" cy="18" r="2.4" fill="#e53950"/>` },
   x_robe: { slot: 'back', name: 'Мантія легенди', price: 0, wins: 5, f: `<path d="M34 72 C14 96 16 118 20 126 L110 126 C114 118 116 96 96 72Z" fill="#7b1fa2"/><path d="M34 72 Q65 86 96 72" stroke="#fff" stroke-width="6" fill="none" stroke-dasharray="2 3"/>`, s: `<path d="M152 48 C130 36 88 36 56 44 C44 60 38 84 42 100 C70 96 104 86 124 70 C138 60 148 54 152 48Z" fill="#7b1fa2"/><path d="M152 48 C130 38 90 38 58 45" stroke="#fff" stroke-width="5" fill="none" stroke-dasharray="2 3"/>`, top: true },
+  c_yarn: { slot: 'fx', name: 'Зоряний клубок', price: 0, coop: 'Розділ 1 «Шкатулка»', cls: 'fx-yarn' },
 };
 export const SLOTS = { head: 'Головні убори', eyes: 'Окуляри', neck: 'На шию', body: 'Одяг', back: 'Спина', bg: 'Фони', fx: 'Ефекти', title: 'Титули' };
-export const rarity = (it) => (it.wins ? { n: 'Ексклюзив', c: 'ex' } : it.price >= 2000 ? { n: 'Легендарне', c: 'leg' } : it.price >= 600 ? { n: 'Епічне', c: 'epic' } : it.price >= 250 ? { n: 'Рідкісне', c: 'rare' } : { n: 'Звичайне', c: 'common' });
+export const rarity = (it) => (it.coop ? { n: 'Легендарне · квест', c: 'leg' } : it.wins ? { n: 'Ексклюзив', c: 'ex' } : it.price >= 2000 ? { n: 'Легендарне', c: 'leg' } : it.price >= 600 ? { n: 'Епічне', c: 'epic' } : it.price >= 250 ? { n: 'Рідкісне', c: 'rare' } : { n: 'Звичайне', c: 'common' });
 
 // ---------- малювання ----------
 const grads = (k, F, E, side) => `<defs>

@@ -143,7 +143,7 @@ function onData() {
 // ---------- рендер ----------
 function render() {
   if (S.denied) return renderDenied();
-  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia }[S.view];
+  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia, coop: renderCoop }[S.view];
   (v || renderHome)();
   window.scrollTo?.(0, 0);
 }
@@ -272,7 +272,7 @@ function renderHome() {
       ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
       ${tile('workshop', '🎨', 'Творча майстерня', !wsUnlocked().ok ? '🔒 з рангу «Котик-романтик»' : pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', !wsUnlocked().ok ? 'dim' : pendingArt() ? 'hot' : '')}
       ${tile('trivia', '🧹', 'Робота задарма', 'питання за 🪙 · 💎 +50')}
-      <div class="tile locked wide"><span class="ti">🧩</span><b>Дві половинки — кооперативний фінал</b><span class="ts">скоро</span></div>
+      ${tile('coop', '🧩', 'Дві половинки — 3D-квест удвох', 'Шкатулка · Маяк · Сад — легендарні нагороди', 'wide')}
     </div></div>`;
   mountCat(document.getElementById('catStage'), [me, p].filter(Boolean).map((u) => ({ uid: u, av: avOf(u) })));
 }
@@ -581,13 +581,17 @@ function renderReward() {
     <button class="btn" data-a="rwSave">Зберегти</button></div></div>`;
 }
 
+// «Дві половинки» завантажується лише при вході (3D-бібліотека не гальмує решту гри)
+let coopMod = null;
+function renderCoop() { import('./coop.js').then((m) => { coopMod = m; if (S.view === 'coop') m.enterCoop(api); }).catch((e) => { console.error(e); toast('Не вдалося завантажити гру'); S.view = 'home'; render(); }); }
+
 // ---------- дії ----------
 function notify(uid, title, msg) { return sendPush(S.users[uid]?.ntfy, title, msg); }
 const actions = {
   ...duelActions, ...shopActions, ...workshopActions, ...triviaActions,
   copyTopic: () => { const t = S.users[S.uid]?.ntfy || ''; navigator.clipboard?.writeText(t).then(() => toast('Скопійовано ✓'), () => toast(t)); },
   testPush: () => { notify(S.uid, '🐱 Мур!', 'Сповіщення працюють 💕'); toast('Надіслано — перевір ntfy'); },
-  go: (el) => { const to = el.dataset.to; recCancel(); resetWorkshop(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
+  go: (el) => { const to = el.dataset.to; if (S.view === 'coop' && to !== 'coop') coopMod?.leaveCoop(); recCancel(); resetWorkshop(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
   logout: () => signOut(auth),
   authMode: () => { S.authMode = S.authMode === 'login' ? 'register' : 'login'; S.authErr = ''; renderAuth(); },
   pick: (el) => {
@@ -619,5 +623,5 @@ app.addEventListener('click', (e) => {
 });
 
 // ---------- спільні функції для модулів дуелей і магазину ----------
-const api = { S, db, doc, getDoc, setDoc, updateDoc, arrayUnion, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+const api = { S, db, fb, doc, getDoc, setDoc, updateDoc, arrayUnion, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
 initDuels(api); initShop(api); initWorkshop(api); initTrivia(api);
