@@ -144,13 +144,20 @@ function pick(id, again) {
 }
 function accept() {
   const s = sess; if (!s || s.st !== 'inv' || s.to !== me()) return;
-  N.upd('', { s: { ...s, st: 'go', at: N.now() + 3500 }, st: null, w: null, in: null });
+  N.upd('', { s: { ...s, st: 'go', at: N.now() + 3500 }, st: null, w: null, in: null, g: null });
 }
 
 // ---------- гра ----------
+const hud = (lvl, ctlCls, ctlHtml) => `<div class="page coop game3d">
+    <header class="g-hud"><button class="g-btn" id="gQuit" data-c="quit">✕</button><div class="g-t"><b>${lvl.id} · ${esc(lvl.name)}</b><span id="gInfo" class="muted small"></span></div><button class="g-btn" id="gVoice" data-c="gVoice">🎙</button></header>
+    <div class="g-stage" id="gStage"><div class="g-over" id="gOver"></div></div>
+    <div class="g-ctl ${ctlCls}" id="gCtl">${ctlHtml}</div></div>`;
+const endLevel = (s, r) => N.upd('s', { st: 'end', res: { t: Math.max(1, Math.round((N.now() - s.at) / 1000)), fish: r.fish, falls: r.falls } });
+
 async function startGame(s) {
   const lvl = levelById(s.lvl); if (!lvl) return;
   view = 'game';
+  if (lvl.ch === 2) return startLightGame(s, lvl);
   N.setPresence({ v: 'play', voice: N.voice.on });
   const idx = ALL_LEVELS.findIndex((l) => l.id === lvl.id);
   const myAxis = (idx % 2 === 0) === isHost() ? 'x' : 'z';
@@ -170,7 +177,7 @@ async function startGame(s) {
     sendTilt: (v) => N.set('in/' + me_, v),
     sendState: (v) => N.set('st', v),
     sendWorld: (v) => N.set('w', v),
-    onWin: (r) => { if (isHost()) N.upd('s', { st: 'end', res: { t: Math.max(1, Math.round((N.now() - s.at) / 1000)), fish: r.fish, falls: r.falls } }); },
+    onWin: (r) => endLevel(s, r),
     onFall: () => { navigator.vibrate?.(60); flash('Ой! Клубок упав 🙀'); },
     onBump: () => navigator.vibrate?.(12),
     onSwitch: () => flash('Клац! Ворота відчинено ✨'),
@@ -182,6 +189,29 @@ async function startGame(s) {
   if (!isHost()) gameSubs.push(N.listen('st', (v) => game?.hostState(v)));
   gameSubs.push(N.listen('w', (v) => { if (!game) return; game.world(v); if (!isHost() && v) { const [, f, , fall] = v.split('|'); if (fall === '1') flash('Ой! Клубок упав 🙀'); if (f === '1' && !game._f) { game._f = 1; flash('Рибка! 🐟'); } } }));
   bindControls(myAxis);
+  clearInterval(timerT); timerT = setInterval(tick, 250); tick();
+}
+// Розділ 2 «Маяк»: ролі «мандрівник» / «штурман» міняються на кожному рівні
+async function startLightGame(s, lvl) {
+  N.setPresence({ v: 'play', voice: N.voice.on });
+  const idx = ALL_LEVELS.findIndex((l) => l.id === lvl.id);
+  const role = (idx % 2 === 0) === isHost() ? 'walker' : 'nav';
+  A.app.innerHTML = hud(lvl, 'light', '');
+  root = A.app.firstElementChild; root.addEventListener('click', onClick);
+  paintVoice();
+  const { startLight } = await import('./lighthouse.js');
+  if (view !== 'game' || sess?.n !== s.n) return;
+  game = startLight({
+    holder: document.getElementById('gStage'), ctlEl: document.getElementById('gCtl'), grid: lvl.grid, levers: lvl.levers, role, at: s.at, now: N.now,
+    send: (k, v) => N.set('g/' + k, v),
+    listen: (k, cb) => N.listen('g/' + k, cb),
+    onWin: (r) => endLevel(s, r),
+    onFall: () => { navigator.vibrate?.(80); flash(role === 'walker' ? 'Ай! Пастка 🙀 Назад до останніх дверей' : 'Ой! Мандрівник у пастці 🙀'); },
+    onFish: () => flash('Рибка! 🐟'),
+    flash,
+  });
+  game.n = s.n; game.lvl = lvl; window.__coopGame = game;
+  if (N.now() > s.at + 1000) { const [p0, w0, d0] = await Promise.all([N.once('g/pos'), N.once('g/w'), N.once('g/dr')]); game?.restore(p0, w0, d0); }
   clearInterval(timerT); timerT = setInterval(tick, 250); tick();
 }
 function flash(t) { const o = document.getElementById('gOver'); if (!o || o.dataset.hold) return; o.innerHTML = `<div class="g-flash">${t}</div>`; clearTimeout(o._t); o._t = setTimeout(() => { if (!o.dataset.hold) o.innerHTML = ''; }, 1300); }

@@ -309,3 +309,20 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .res-big { font-size: 54px; } .res .plus { font-weight: 800; color: #2e9d57; font-size: 18px; }
 .legend-pop { margin: 10px 0; padding: 12px; border-radius: 16px; background: linear-gradient(135deg, #fff6d6, #ffe0ef); border: 2px solid #ffc94d; font-weight: 800; animation: legendIn .6s ease-out; }
 @keyframes legendIn { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.fx-beam::after { position: absolute; top: 6%; left: 0; right: 0; text-align: center; font-size: 15px; letter-spacing: 30px; content: '🏮💫🏮'; animation: fxFloat 2.4s ease-in-out infinite; pointer-events: none; }
+.fx-beam svg { filter: drop-shadow(0 0 6px #ffe28a) drop-shadow(0 0 14px #7ee7ff); animation: fxBeam 2.6s ease-in-out infinite; }
+@keyframes fxBeam { 50% { filter: drop-shadow(0 0 10px #ffe28a) drop-shadow(0 0 22px #7ee7ff); } }
+.kitty.fx-beam::after { top: -6px; left: 30px; right: 10px; }
+/* Маяк */
+.g-ctl.light { min-height: 150px; }
+.joy-row { display: flex; align-items: center; justify-content: center; gap: 22px; }
+.joy { position: relative; width: 132px; height: 132px; border-radius: 50%; background: radial-gradient(circle, #ffe6ef, #ffc9dc); box-shadow: inset 0 2px 8px #0002; touch-action: none; }
+.joy-k { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, #ff8fb8); box-shadow: 0 3px 8px #0003; pointer-events: none; }
+.meow { min-width: 96px; }
+.lv-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 4px 0 6px; }
+.lv { border: 0; border-radius: 14px; padding: 14px 16px; font: 800 15px Nunito, system-ui, sans-serif; background: #ece4ff; color: #4a2d7a; box-shadow: 0 3px 0 #c9b8f2; min-width: 96px; }
+.lv:active { transform: translateY(2px); box-shadow: 0 1px 0 #c9b8f2; } .lv.on { background: #ffe9a8; box-shadow: 0 3px 0 #e8c25a; }
+.ping-arrow { position: absolute; left: 50%; top: 50%; display: none; pointer-events: none; z-index: 2; }
+.ping-arrow span { display: block; filter: drop-shadow(0 0 6px #7ee7ff); animation: pingPulse .8s ease-in-out infinite; }
+@keyframes pingPulse { 50% { transform: scale(1.25); } }
