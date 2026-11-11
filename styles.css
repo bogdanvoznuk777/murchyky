@@ -326,3 +326,12 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .ping-arrow { position: absolute; left: 50%; top: 50%; display: none; pointer-events: none; z-index: 2; }
 .ping-arrow span { display: block; filter: drop-shadow(0 0 6px #7ee7ff); animation: pingPulse .8s ease-in-out infinite; }
 @keyframes pingPulse { 50% { transform: scale(1.25); } }
+
+.fx-pair::after { position: absolute; top: 6%; left: 0; right: 0; text-align: center; font-size: 15px; letter-spacing: 30px; content: '💞✨💞'; animation: fxFloat 2.4s ease-in-out infinite; pointer-events: none; }
+.kitty.fx-pair::after { top: -6px; left: 30px; right: 10px; }
+.pair-heart { position: absolute; bottom: 60px; font-size: 16px; pointer-events: none; animation: pairUp 2.2s ease-out forwards; z-index: 2; }
+@keyframes pairUp { from { transform: translateY(0) scale(.6); opacity: 0; } 20% { opacity: 1; } to { transform: translateY(-46px) scale(1.15); opacity: 0; } }
+.final-card { background: linear-gradient(135deg, #fff6d6, #ffe0ef); border: 2px solid #ffc94d; }
+.final-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.final-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 2px solid #ffd3e3; border-radius: 14px; background: #fff; padding: 6px 4px; font: 700 12px Nunito, system-ui, sans-serif; color: #5b2a4a; }
+.final-opt.sel { border-color: #ff5c9a; box-shadow: 0 0 0 3px #ffd3e3; }

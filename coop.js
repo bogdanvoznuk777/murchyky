@@ -1,7 +1,8 @@
 // ===== «Дві половинки» — кооперативний 3D-квест (екрани, запрошення, нагороди) =====
 import * as N from './coopnet.js';
-import { CHAPTERS, ALL_LEVELS, LEVEL_COINS, levelById } from './levels.js';
-import { ITEMS, FURS } from './avatar.js';
+import { CHAPTERS, ALL_LEVELS, LEVEL_COINS, FINAL_CHOICES, levelById } from './levels.js';
+import { ITEMS, FURS, portrait } from './avatar.js';
+import { avOf } from './shop.js';
 
 let A = null, root = null, game = null, prog = {}, pres = {}, sess = null, view = 'map', ctlCleanup = null, visHandler = null, awarded = new Set();
 let gameSubs = [], partnerVoice = false, countT = 0, timerT = 0, lastResN = 0, ready = false, gyro = null;
@@ -65,6 +66,38 @@ function onSess() {
   if (view === 'map') paintMapLive();
 }
 
+// ---------- фінальні нагороди ----------
+const allDone = () => ALL_LEVELS.every((l) => doneBy(me(), l.id));
+const fishN = () => ALL_LEVELS.filter((l) => prog[me()]?.fish?.[l.id] || prog[P()]?.fish?.[l.id]).length;
+const granted = new Set();
+function grantMeta() {
+  const owned = A.S.avatars[me()]?.owned || [];
+  if (fishN() === ALL_LEVELS.length && !owned.includes('c_pair') && !granted.has('c_pair')) {
+    granted.add('c_pair'); A.setDoc(A.doc(A.db, 'avatars', me()), { owned: A.arrayUnion('c_pair') }, { merge: true }).catch(() => granted.delete('c_pair'));
+    return 'c_pair';
+  }
+  return '';
+}
+let finalSel = null;
+function finalCard() {
+  const mine = prog[me()] || {};
+  if (mine.final) return `<div class="card final-card center">👑 <b>Квест «Дві половинки» пройдено!</b><div class="small">Твій легендарний костюм: <b>${esc(ITEMS[mine.final]?.name || '')}</b> і титул «Дві половинки» — у гардеробі.</div></div>`;
+  if (!allDone()) return `<div class="card small">👑 Фінальна нагорода: <b>легендарний костюм на вибір</b> (його немає в магазині) і титул «Дві половинки» — після всіх ${ALL_LEVELS.length} рівнів (${ALL_LEVELS.filter((l) => doneBy(me(), l.id)).length}/${ALL_LEVELS.length}).<br>🐟 Рибки: ${fishN()}/${ALL_LEVELS.length} — за всі ваші котики отримають парний ефект «Нерозлучні»: гулятимуть разом, а між ними злітатимуть сердечка.</div>`;
+  const base = avOf(me());
+  const opt = (id) => `<button class="final-opt ${finalSel === id ? 'sel' : ''}" data-c="finalPick" data-id="${id}">${portrait({ ...base, owned: [...base.owned, id], eq: { ...base.eq, body: id } }, 84)}<span>${esc(ITEMS[id].name)}</span></button>`;
+  return `<div class="card final-card"><b>🏆 Ви пройшли весь квест! Обери свій легендарний костюм</b><div class="muted small">Обрати можна лише один — назавжди. Партнер обирає свій.</div>
+    <div class="final-opts">${FINAL_CHOICES.map(opt).join('')}</div>
+    ${finalSel ? `<button class="btn" data-c="finalTake" style="margin-top:10px;width:100%">Забрати «${esc(ITEMS[finalSel].name)}» 👑</button>` : ''}</div>`;
+}
+async function takeFinal() {
+  const id = finalSel; if (!id || !FINAL_CHOICES.includes(id) || prog[me()]?.final || !allDone()) return;
+  (prog[me()] ||= {}).final = id;
+  A.setDoc(progRef(me()), { final: id }, { merge: true }).catch((e) => console.error(e));
+  A.setDoc(A.doc(A.db, 'avatars', me()), { owned: A.arrayUnion(id, 'c_title') }, { merge: true }).catch((e) => console.error(e));
+  A.toast(`👑 ${ITEMS[id].name} — твій! Вдягни в «Моєму котику»`);
+  renderMap();
+}
+
 // ---------- мапа ----------
 function renderMap() {
   view = 'map'; stopGame();
@@ -83,10 +116,12 @@ function renderMap() {
     <div class="card coop-p"><div id="cpPartner"></div><div id="cpNet" class="muted small"></div></div>
     <div id="cpInvite"></div>
     <div class="card"><div id="cpVoice"></div></div>
+    ${finalCard()}
     ${chs}
     <div class="card muted small">🎧 Найкраще грати в навушниках. Пройдіть усі розділи — і кожен обере легендарний костюм, якого немає в магазині. Кожна захована рибка 🐟 — крок до парного ефекту.</div></div>`;
   root = A.app.firstElementChild; root.addEventListener('click', onClick);
   paintMapLive(); paintVoice(); paintNet();
+  const g = grantMeta(); if (g) A.toast('💞 Усі рибки зібрано! Ефект «Нерозлучні» — у гардеробі');
 }
 function paintNet() {
   const el = document.getElementById('cpNet'); if (!el) return;
@@ -130,6 +165,8 @@ function onClick(e) {
   if (a === 'gVoice') { if (!N.voice.on) N.voiceStart(P(), isHost()); else N.voiceMute(!N.voice.muted); return; }
   if (a === 'quit') { if (confirmQuit()) N.upd('s', { st: 'quit', qBy: me() }); return; }
   if (a === 'gyro') return toggleGyro();
+  if (a === 'finalPick') { finalSel = el.dataset.id; return renderMap(); }
+  if (a === 'finalTake') return takeFinal();
   if (a === 'again') return pick(el.dataset.id, true);
   if (a === 'map') { N.set('s', null); return renderMap(); }
 }
@@ -312,6 +349,7 @@ async function finish(s) {
     const owned = A.S.avatars[me()]?.owned || [];
     if (!owned.includes(ch.reward)) { A.setDoc(A.doc(A.db, 'avatars', me()), { owned: A.arrayUnion(ch.reward) }, { merge: true }).catch(() => {}); legend = ch.reward; }
   }
+  const pairNow = grantMeta();
   stopGame();
   const i = ALL_LEVELS.findIndex((l) => l.id === lvl.id), next = ALL_LEVELS[i + 1];
   view = 'result'; N.setPresence({ v: 'map', voice: N.voice.on });
@@ -320,6 +358,8 @@ async function finish(s) {
       <p>⏱ ${r.t} с · падінь: ${r.falls || 0} ${r.fish ? '· 🐟 рибку знайдено!' : '· 🐟 рибку пропущено'}</p>
       ${first ? `<p class="plus">+${LEVEL_COINS} 🪙 кожному</p>` : '<p class="muted small">Повторне проходження — монети лише за перше. Але рекорд оновлюється!</p>'}
       ${best === r.t ? '<p>🏆 Ваш рекорд на цьому рівні!</p>' : `<p class="muted small">Рекорд: ${best} с</p>`}
+      ${allDone() && !mine.final ? '<div class="legend-pop">🏆 УВЕСЬ КВЕСТ ПРОЙДЕНО!<br><b>На мапі тебе чекає вибір легендарного костюма 👑</b></div>' : ''}
+      ${pairNow ? '<div class="legend-pop">💞 Усі 15 рибок! <b>Ефект «Нерозлучні»</b><div class="muted small">Вдягніть обидва — і котики гулятимуть разом</div></div>' : ''}
       ${legend ? `<div class="legend-pop">✨ ЛЕГЕНДАРНА НАГОРОДА ✨<br><b>${esc(ITEMS[legend]?.name)}</b><div class="muted small">Уже в гардеробі «Мого котика»</div></div>` : ''}
       <div class="row3">${next && next.grid ? `<button class="btn" data-c="pick" data-id="${next.id}">Далі: ${next.id} ▶</button>` : ''}<button class="btn ghost" data-c="again" data-id="${lvl.id}">Ще раз</button><button class="btn ghost" data-c="map">До мапи</button></div></div>
     <div class="card"><div id="cpVoice"></div></div><div id="cpInvite"></div><div id="cpPartner" hidden></div></div>`;

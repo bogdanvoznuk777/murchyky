@@ -15,6 +15,8 @@ export function mountCat(holder, cats) {
     if (kt.key !== key) { kt.key = key; draw(kt, c.av); }
   }
   for (const id of Object.keys(stage.kits)) if (!cats.some((c) => c.uid === id)) { stage.kits[id].k.remove(); delete stage.kits[id]; }
+  // «Нерозлучні»: якщо обидва котики в цьому ефекті — гуляють разом, а між ними злітають сердечка
+  stage.paired = cats.length === 2 && cats.every((c) => c.av.eq?.fx === 'c_pair') ? cats.map((c) => c.uid) : null;
   holder.appendChild(stage.el); // той самий елемент — котики не «перестрибують» при оновленні екрана
   if (!stage.running) { stage.running = true; stage.last = performance.now(); requestAnimationFrame(tick); }
 }
@@ -85,14 +87,28 @@ function tick(now) {
   if (!stage.el.isConnected) { stage.running = false; return; }
   const dt = Math.min(0.05, (now - stage.last) / 1000); stage.last = now;
   const W = stage.el.clientWidth;
+  const pair = stage.paired && stage.paired.every((id) => stage.kits[id]) ? stage.paired.map((id) => stage.kits[id]) : null;
+  if (pair) {
+    const [lead, fol] = pair, cw = fol.k.offsetWidth || 158, max = Math.max(0, W - cw);
+    // другий котик іде поруч із першим, а стоїть і муркоче разом із ним
+    const want = Math.max(0, Math.min(max, lead.x - lead.dir * 64));
+    if (lead.mode === 'walk' || Math.abs(want - fol.x) > 8) { if (fol.mode !== 'walk') setMode(fol, 'walk'); fol.target = want; fol.until = Infinity; }
+    else if (fol.mode !== lead.mode) setMode(fol, lead.mode, lead.until - now);
+    if (!stage.nextHeart || now > stage.nextHeart) {
+      stage.nextHeart = now + 900;
+      const h = document.createElement('span'); h.className = 'pair-heart'; h.textContent = Math.random() < 0.5 ? '💗' : '💞';
+      h.style.left = `${(lead.x + fol.x) / 2 + 70 + rand(-12, 12)}px`; stage.el.appendChild(h); setTimeout(() => h.remove(), 2300);
+    }
+  }
   for (const kt of Object.values(stage.kits)) {
+    const follower = pair && kt === pair[1];
     const cw = kt.k.offsetWidth || 158, max = Math.max(0, W - cw);
     if (kt.first) { kt.first = false; kt.x = rand(0, max); kt.target = rand(0, max); }
     if (kt.mode === 'walk') {
       const dx = kt.target - kt.x;
-      if (Math.abs(dx) < 2) setMode(kt, 'look', rand(1200, 2200));
+      if (Math.abs(dx) < 2) { if (follower) { kt.dir = pair[0].dir; setMode(kt, pair[0].mode === 'walk' ? 'walk' : pair[0].mode, 0); } else setMode(kt, 'look', rand(1200, 2200)); }
       else { kt.dir = Math.sign(dx); kt.x += kt.dir * Math.min(Math.abs(dx), SPEED * dt); }
-    } else if (now > kt.until) {
+    } else if (!follower && now > kt.until) {
       if (kt.mode === 'look') setMode(kt, 'purr', rand(2800, 4200));
       else { let t = rand(0, max); if (Math.abs(t - kt.x) < 70) t = kt.x < max / 2 ? max : 0; kt.target = t; setMode(kt, 'walk'); }
     }
