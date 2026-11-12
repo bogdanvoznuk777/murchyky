@@ -2,7 +2,7 @@
 import { chromium } from '/opt/npm-tools/node_modules/playwright/index.mjs';
 import fs from 'fs'; import path from 'path';
 const ROOT = new URL('..', import.meta.url).pathname;
-const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 1500, height: 700 } });
+const b = await chromium.launch(); const pg = await b.newPage({ viewport: { width: 1500, height: 700 }, deviceScaleFactor: 2 });
 const errs = []; pg.on('pageerror', (e) => errs.push(e.message)); pg.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
 await pg.route('**/*', (r) => { const u = r.request().url(); if (u.startsWith('http://localhost:5555/')) { const p = new URL(u).pathname.slice(1); if (p === 't.html') return r.fulfill({ contentType: 'text/html', body: '<link rel=stylesheet href=styles.css><div id=w style="display:flex;flex-wrap:wrap;gap:8px"></div>' }); return r.fulfill({ contentType: p.endsWith('.js') ? 'text/javascript' : 'text/css', body: fs.readFileSync(path.join(ROOT, p)) }); } return r.abort(); });
 await pg.goto('http://localhost:5555/t.html');

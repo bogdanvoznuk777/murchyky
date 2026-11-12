@@ -117,7 +117,16 @@ const HEAD_S = 'M147 40 C149 27 162 21 174 24 C183 27 188 34 189 41 C191 43 192 
 const it = (id) => ITEMS[id];
 const eqd = (av, slot) => { const id = av.eq?.[slot]; return id && it(id) && (av.owned || []).includes(id) ? it(id) : null; };
 
+// Світло й тінь котика: спільні градієнти, додаються в документ один раз
+const CAT_DEFS = `<svg id="ctDefs" width="0" height="0" style="position:absolute;width:0;height:0" aria-hidden="true" focusable="false"><defs>
+<radialGradient id="ctShade" cx=".36" cy=".2" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".3"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#1c1426" stop-opacity=".26"/></radialGradient>
+<radialGradient id="ctHead" cx=".38" cy=".3" r=".75"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#1c1426" stop-opacity=".2"/></radialGradient>
+<linearGradient id="ctSide" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#1c1426" stop-opacity=".22"/></linearGradient>
+</defs></svg>`;
+function catDefs() { if (typeof document !== 'undefined' && document.body && !document.getElementById('ctDefs')) document.body.insertAdjacentHTML('afterbegin', CAT_DEFS); }
+
 export function frontSVG(av, k, extraCls = '') {
+  catDefs();
   const F = FURS[av.fur] || FURS.blue, E = EYES[av.eyes] || EYES.amber, P = av.pattern || 'solid', fold = av.ears !== 'straight';
   const back = eqd(av, 'back'), body = eqd(av, 'body'), neck = eqd(av, 'neck'), eyes = eqd(av, 'eyes'), head = eqd(av, 'head');
   const white = '#f7f8fb', chest = P === 'tuxedo' ? white : F.belly, paw = P === 'tuxedo' ? white : F.paw, muzzle = P === 'tuxedo' ? white : F.belly;
@@ -136,22 +145,24 @@ export function frontSVG(av, k, extraCls = '') {
   <g class="c-body">
     <path d="${BODY_F}" fill="url(#furG${k})"/>${pat}
     <ellipse cx="65" cy="94" rx="16" ry="21" fill="${chest}" opacity=".9"/>
+    <path d="${BODY_F}" fill="url(#ctShade)"/><ellipse cx="60" cy="86" rx="7" ry="10" fill="#fff" opacity=".09"/>
     ${body ? body.f : ''}
-    <ellipse cx="53" cy="119" rx="10" ry="6" fill="${paw}"/><ellipse cx="77" cy="119" rx="10" ry="6" fill="${paw}"/>
+    <ellipse cx="53" cy="119" rx="10" ry="6" fill="${paw}"/><ellipse cx="77" cy="119" rx="10" ry="6" fill="${paw}"/><ellipse cx="51" cy="117" rx="5" ry="2.2" fill="#fff" opacity=".22"/><ellipse cx="75" cy="117" rx="5" ry="2.2" fill="#fff" opacity=".22"/>
     <path d="M50 120 v3 M55 120 v3 M74 120 v3 M79 120 v3" stroke="${F.stripe}" stroke-width="1" stroke-linecap="round" opacity=".6"/>
     ${neck ? neck.f : ''}
     <g class="c-face">
       ${earsUnder}
-      <circle cx="65" cy="46" r="33" fill="url(#furG${k})"/>${patH}
+      <circle cx="65" cy="46" r="33" fill="url(#furG${k})"/>${patH}<circle cx="65" cy="46" r="33" fill="url(#ctHead)"/>
       ${ears}
       <ellipse cx="65" cy="59" rx="18" ry="13" fill="${muzzle}"/>
       <g class="eyes-open">
         <ellipse cx="52" cy="45" rx="7.5" ry="8" fill="url(#eyeG${k})"/><ellipse cx="78" cy="45" rx="7.5" ry="8" fill="url(#eyeG${k})"/>
         <ellipse cx="52.5" cy="45.5" rx="3" ry="6.5" fill="#2b2b33"/><ellipse cx="78.5" cy="45.5" rx="3" ry="6.5" fill="#2b2b33"/>
-        <circle cx="55" cy="42" r="2" fill="#fff"/><circle cx="81" cy="42" r="2" fill="#fff"/>
+        <ellipse cx="52" cy="45" rx="7.5" ry="8" fill="none" stroke="#2b2b33" stroke-opacity=".28" stroke-width="1"/><ellipse cx="78" cy="45" rx="7.5" ry="8" fill="none" stroke="#2b2b33" stroke-opacity=".28" stroke-width="1"/>
+        <circle cx="55" cy="42" r="2.2" fill="#fff"/><circle cx="81" cy="42" r="2.2" fill="#fff"/><circle cx="50" cy="49" r="1" fill="#fff" opacity=".75"/><circle cx="76" cy="49" r="1" fill="#fff" opacity=".75"/>
       </g>
       <g class="eyes-closed" stroke="#4b5568" stroke-width="2.2" fill="none" stroke-linecap="round"><path d="M45 46 Q52 41 59 46"/><path d="M71 46 Q78 41 85 46"/></g>
-      <path d="M61 54 L69 54 L65 58.5Z" fill="#f08aa8"/>
+      <path d="M61 54 L69 54 L65 58.5Z" fill="#f08aa8"/><ellipse cx="63.6" cy="54.8" rx="1.6" ry=".8" fill="#fff" opacity=".55"/>
       <path d="M65 58.5 Q65 64 59 64 M65 58.5 Q65 64 71 64" stroke="#5d6a7c" stroke-width="1.8" fill="none" stroke-linecap="round"/>
       <ellipse cx="41" cy="56" rx="6" ry="3.5" fill="#ff9ab8" opacity=".5"/><ellipse cx="89" cy="56" rx="6" ry="3.5" fill="#ff9ab8" opacity=".5"/>
       <g stroke="${F.wh}" stroke-width="1.3" stroke-linecap="round"><path d="M47 59 L24 55M47 63 L25 67M83 59 L106 55M83 63 L105 67"/></g>
@@ -168,6 +179,7 @@ const leg = (cls, hind, dx, fill, paw) => hind
       <g class="lo"><path d="M${134 + dx} 89 L${136 + dx} 115" stroke="${fill}" stroke-width="8.5" fill="none" stroke-linecap="round"/><ellipse cx="${139 + dx}" cy="117.5" rx="7" ry="3.6" fill="${paw}"/></g></g></g>`;
 
 export function sideSVG(av, k) {
+  catDefs();
   const F = FURS[av.fur] || FURS.blue, E = EYES[av.eyes] || EYES.amber, P = av.pattern || 'solid', fold = av.ears !== 'straight';
   const back = eqd(av, 'back'), body = eqd(av, 'body'), neck = eqd(av, 'neck'), eyes = eqd(av, 'eyes'), head = eqd(av, 'head');
   const white = '#f7f8fb', belly = P === 'tuxedo' ? white : F.belly, pawN = P === 'tuxedo' ? white : F.paw, muzzle = P === 'tuxedo' ? white : F.belly;
@@ -184,7 +196,7 @@ export function sideSVG(av, k) {
   <g class="c-tail"><path d="M44 58 C26 57 15 52 10 40 C7 32 12 26 18 29" stroke="url(#furD${k})" stroke-width="10" fill="none" stroke-linecap="round"/>${P === 'tabby' ? `<path d="M30 56 L28 50M20 50 L16 46" stroke="${F.stripe}" stroke-width="3" opacity=".6"/>` : ''}</g>
   ${legs2}
   <g class="c-torso">
-    <path d="${TORSO}" fill="url(#furG${k})"/>${patT}
+    <path d="${TORSO}" fill="url(#furG${k})"/>${patT}<path d="${TORSO}" fill="url(#ctSide)"/>
     <path d="M80 79 C95 82 110 82 124 84 C133 86 143 85 148 80 C140 83 130 83 120 81 C106 79 94 80 80 79Z" fill="${belly}" opacity=".85"/>
     ${body ? body.s : ''}${back ? back.s : ''}
   </g>
@@ -192,12 +204,12 @@ export function sideSVG(av, k) {
   ${neck ? neck.s : ''}
   <g class="c-head">
     ${earUp}
-    <path d="${HEAD_S}" fill="url(#furG${k})"/>${patH}
+    <path d="${HEAD_S}" fill="url(#furG${k})"/>${patH}<path d="${HEAD_S}" fill="url(#ctHead)"/>
     ${earFold}
     <path d="M176 49 C180 47 186 47 190 48 C189 52 185 55 180 55 C177 55 175 52 176 49Z" fill="${muzzle}"/>
     <path d="M171 38 C173 34 179 33 181 37 C179 41 173 42 171 38Z" fill="url(#eyeG${k})"/>
     <path d="M176.5 34.2 C175.6 36 175.6 39.5 176.6 41" stroke="#2b2b33" stroke-width="1.6" fill="none" stroke-linecap="round"/>
-    <circle cx="178.5" cy="36" r="1" fill="#fff"/>
+    <circle cx="178.5" cy="36" r="1.1" fill="#fff"/><circle cx="173.6" cy="39.4" r=".55" fill="#fff" opacity=".7"/>
     <path d="M170.5 38 C173 33 180 32 182 37" stroke="#5d6a7c" stroke-width="1" fill="none" opacity=".6"/>
     <path d="M188 42.5 C190 42.5 191.5 44 191 46 L188.5 46Z" fill="#f08aa8"/>
     <path d="M189 49 C188 51 186 52 184 52" stroke="#5d6a7c" stroke-width="1.2" fill="none" stroke-linecap="round"/>

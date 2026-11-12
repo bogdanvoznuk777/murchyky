@@ -1,7 +1,7 @@
 // ===== Кімната котика: облаштування, магазин меблів, гості, подарунки, бонуси за набори =====
 // Дані: rooms/{uid} = { owned[], layout[{i,x,f,p}], paper, flooring, view, gifts[{item,from,ts}], visit{by,at}, note{text,by,at,seen}, liked, likes, pushAt }
 // Записи: збереження кімнати — 1; візит — 1 (не частіше ніж раз на 10 хв); 💕 — 1 + бали; записка — 1; покупка — 2.
-import { RITEMS, SETS, SET_ITEMS, FREE, LEVELS, VIEWS, SHELF_LEVEL, DEFAULT_ROOM, ROOM_H, WALL_H, FLOOR_Y, BASE_W, FX_MIN_PLACED, cosyOf, levelOf, viewOk, setDone, itemSVG, dayPhase, season } from './roomitems.js';
+import { RITEMS, SETS, SET_ITEMS, FREE, LEVELS, VIEWS, SHELF_LEVEL, DEFAULT_ROOM, ROOM_H, WALL_H, FLOOR_Y, BASE_W, FX_MIN_PLACED, cosyOf, levelOf, viewOk, setDone, itemSVG, litSVG, dayPhase, season } from './roomitems.js';
 import { ITEMS, portrait } from './avatar.js';
 import { avOf, wallet } from './shop.js';
 import { mountCat } from './cat.js';
@@ -47,6 +47,24 @@ function sceneHTML(uid, R, lvl, edit) {
   // живі ефекти зібраних наборів
   const fx = Object.keys(SETS).filter((st) => setDone(st, R.owned) && R.layout.filter((e) => RITEMS[e.i].set === st).length >= FX_MIN_PLACED)
     .map((st) => `<div class="r-fx rfx-${st}">${Array.from({ length: 8 }, (_, i) => `<i style="left:${(6 + i * 12 + (i % 3) * 3)}%;animation-delay:${(-i * 0.9).toFixed(1)}s"></i>`).join('')}</div>`).join('');
+  // світло: промінь із кожного вікна (нахил — за сонцем), вечірнє/нічне затемнення, сяйво каміна / люстри / гірлянди
+  const LIGHT = { morning: ['255,220,170', 0.4, 60, 0.06, '255,190,140'], day: ['255,250,225', 0.42, 18, 0, ''], evening: ['255,170,110', 0.36, -60, 0.14, '90,40,90'], night: ['170,190,255', 0.16, 0, 0.32, '14,20,70'] }[ph];
+  const lx = (e, it, x, w = 0) => (e.f ? e.x + it.w - x - w : e.x + x);
+  let light = '';
+  for (const e of list) {
+    const it = RITEMS[e.i];
+    if (it.beam) { const [bx, bw, by] = it.beam, x1 = lx(e, it, bx, bw), x2 = x1 + bw, y = it.y + by, d = LIGHT[2];
+      light += `<div class="r-beam" style="clip-path:polygon(${(x1 * k).toFixed(1)}px ${(y * k).toFixed(1)}px,${(x2 * k).toFixed(1)}px ${(y * k).toFixed(1)}px,${((x2 + d + 30) * k).toFixed(1)}px ${(ROOM_H * k).toFixed(1)}px,${((x1 + d - 22) * k).toFixed(1)}px ${(ROOM_H * k).toFixed(1)}px);background:linear-gradient(180deg,rgba(${LIGHT[0]},${LIGHT[1]}),rgba(${LIGHT[0]},0) 92%)"></div>`; }
+  }
+  if (LIGHT[3]) light += `<div class="r-tint" style="background:rgba(${LIGHT[4]},${LIGHT[3]})"></div>`;
+  for (const e of list) {
+    const it = RITEMS[e.i]; if (!it.glow) continue;
+    const [gx, gy, gr, gc, gm] = it.glow, top = it.kind === 'wall' ? it.y : FLOOR_Y - it.h, a = (ph === 'night' ? 0.5 : ph === 'evening' ? 0.38 : e.i === 'sc_fire' ? 0.2 : 0.08) * gm;
+    light += `<div class="r-glow" style="left:${((lx(e, it, gx) - gr) * k).toFixed(1)}px;top:${((top + gy - gr) * k).toFixed(1)}px;width:${(gr * 2 * k).toFixed(1)}px;height:${(gr * 2 * k).toFixed(1)}px;background:radial-gradient(closest-side,rgba(${gc},${a}),rgba(${gc},0))"></div>`;
+  }
+  // увечері й уночі джерела світла не темніють
+  if (ph === 'evening' || ph === 'night') for (const { e, it } of items) if (it.lit) light += `<div class="r-lit${e.f ? ' flip' : ''}" style="${box(it, e.x)}">${litSVG(e.i)}</div>`;
+  light += '<div class="r-vig"></div>';
   const P = edit || R, paper = RITEMS[P.paper]?.css || RITEMS.base_paper.css, floor = RITEMS[P.flooring]?.css || RITEMS.base_floor.css;
   // місця, де котик щось робить (у пікселях сцени котика)
   const spots = [];
@@ -60,7 +78,7 @@ function sceneHTML(uid, R, lvl, edit) {
   return {
     html: `<div class="room-wrap"><div class="room${edit ? ' edit' : ''}" id="room" style="--k:${k.toFixed(4)};width:${(W * k).toFixed(1)}px;height:${(ROOM_H * k).toFixed(1)}px">
       <div class="r-paper" style="height:${(WALL_H * k).toFixed(1)}px;background:${paper}"></div><div class="r-floor" style="top:${(WALL_H * k).toFixed(1)}px;background:${floor}"></div><div class="r-base" style="top:${((WALL_H - 6) * k).toFixed(1)}px;height:${(8 * k).toFixed(1)}px"></div>
-      ${html}${gifts}${fx}<div class="r-cat" id="roomCat" style="bottom:${((ROOM_H - FLOOR_Y - 4) * k).toFixed(1)}px;width:${((W * k) / s).toFixed(1)}px;transform:scale(${s.toFixed(4)})"></div></div></div>`,
+      ${html}${gifts}<div class="r-cat" id="roomCat" style="bottom:${((ROOM_H - FLOOR_Y - 4) * k).toFixed(1)}px;width:${((W * k) / s).toFixed(1)}px;transform:scale(${s.toFixed(4)})"></div>${light}${fx}</div></div>`,
     spots, k, W,
   };
 }

@@ -341,7 +341,7 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .room { position: relative; overflow: hidden; border-radius: 20px; background: #fff; }
 .r-paper, .r-floor, .r-base { position: absolute; left: 0; right: 0; }
 .r-floor { bottom: 0; }
-.r-floor::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #0000002e, #0000 45%); pointer-events: none; }
+.r-floor::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(74, 36, 16, .38), rgba(74, 36, 16, .08) 35%, rgba(255, 255, 255, .06)); pointer-events: none; }
 .r-base { background: #fff; box-shadow: 0 2px 4px #0000002a; z-index: 1; }
 .r-it { position: absolute; z-index: 3; }
 .r-it svg { display: block; overflow: visible; }
@@ -388,7 +388,16 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .rf-swing { transform-box: fill-box; transform-origin: 50% 0; animation: rfSw 3s ease-in-out infinite alternate; }
 @keyframes rfSw { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
 /* живі ефекти наборів */
-.r-fx { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+.r-fx { position: absolute; inset: 0; pointer-events: none; z-index: 8; overflow: hidden; }
+.r-beam, .r-tint, .r-vig, .r-glow { position: absolute; pointer-events: none; }
+.r-beam { inset: 0; z-index: 2; }
+.r-tint { inset: 0; z-index: 5; }
+.r-glow { z-index: 6; border-radius: 50%; }
+.r-lit { position: absolute; z-index: 6; pointer-events: none; } .r-lit svg { display: block; overflow: visible; } .r-lit.flip svg { transform: scaleX(-1); }
+.r-vig { inset: 0; z-index: 7; background: radial-gradient(ellipse at 50% 38%, transparent 58%, rgba(70, 30, 15, .2)); }
+.r-paper::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(60, 30, 15, .12), transparent 18%, transparent 85%, rgba(60, 30, 15, .08)); }
+.r-base { background: linear-gradient(180deg, #fff, #e6d6c3) !important; }
+.room.edit .r-tint, .room.edit .r-glow { opacity: .4; }
 .r-fx i { position: absolute; display: block; }
 .rfx-cl i { bottom: 8%; width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(#fff3c4, #ffc46b88 60%, transparent 70%); animation: fxRise 7s linear infinite; }
 @keyframes fxRise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .9; } 100% { transform: translateY(-190px) translateX(14px); opacity: 0; } }
