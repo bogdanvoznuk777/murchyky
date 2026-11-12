@@ -45,7 +45,7 @@ s=await st(); console.log('franken', s.art[fid].status, !!s.artimg[fid]);
 await act('artNew',{m:'blind'}); await pg.waitForTimeout(200); await shot('6blind'); await pg.fill('#artDesc','Угорі ліворуч щось кругле й гаряче, внизу будиночок'); await act('artSend'); await pg.waitForTimeout(300);
 s=await st(); const bid=Object.keys(s.art).find(k=>k.startsWith('blind'));
 await mut((S,a)=>{ S.art[a.id].thumb=a.img; S.artimg[a.id]={img:a.img}; S.art[a.id].status='rate'; }, {id:bid, img:img1});
-await act('artOpen',{id:bid}); await pg.waitForTimeout(300); await shot('7rate'); await act('blindRate',{v:'4'}); await pg.waitForTimeout(400);
+await act('artOpen',{id:bid}); await pg.waitForTimeout(300); await shot('7rate'); await act('blindRate',{v:'4'}); await pg.waitForTimeout(2000); // чекаємо, поки завершиться попередня дія (safe ігнорує натискання, доки S.busy)
 // micro
 await act('artNew',{m:'micro'}); await pg.setInputFiles('#artFile', GAME+'/icon-512.png'); await pg.waitForSelector('#artPrev img'); await pg.fill('#artAns','іконка'); await act('artSend'); await pg.waitForTimeout(300);
 s=await st(); const xid=Object.keys(s.art).find(k=>k.startsWith('micro'));
