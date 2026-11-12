@@ -10,6 +10,7 @@ import { portrait } from './avatar.js';
 import { sendPush, newTopic } from './notify.js';
 import { initWorkshop, renderWorkshop, renderArtNew, renderArt, renderLive, renderAlbum, workshopActions, onLiveUpdate, isEditing, pendingArt, resetWorkshop, wsUnlocked } from './workshop.js';
 import { initTrivia, renderTrivia, triviaActions, DAY_CAP } from './trivia.js';
+import { initRoom, renderRoom, renderRoomShop, roomActions, ensureRoomBonus, roomTile, roomRefresh } from './room.js';
 import { SURVEY, RANKS, PTS } from './data.js';
 import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
 
@@ -19,7 +20,7 @@ const auth = getAuth(fb);
 const db = getFirestore(fb);
 
 const S = {
-  uid: null, registering: false, art: {}, live: {}, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
+  uid: null, registering: false, art: {}, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
   loaded: new Set(), view: 'loading', denied: false, busy: false,
   draft: {}, sIdx: 0, quiz: null, qIdx: 0, qGuess: {}, wCur: '', openCh: null, authMode: 'login', authErr: '',
 };
@@ -94,7 +95,7 @@ onAuthStateChanged(auth, (user) => {
 });
 function start(user) {
   unsubs.forEach((u) => u()); unsubs = [];
-  Object.assign(S, { uid: user?.uid || null, art: {}, live: {}, duels: {}, avatars: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
+  Object.assign(S, { uid: user?.uid || null, art: {}, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
   if (!user) { S.view = 'auth'; render(); return; }
   S.view = 'loading'; render();
   setDoc(doc(db, 'users', user.uid), { nick: emailToNick(user.email), lastSeen: Date.now() }, { merge: true }).catch(onErr);
@@ -107,6 +108,7 @@ function start(user) {
   sub('wordle', collection(db, 'wordle'), (s) => { S.wordles = {}; s.forEach((d) => (S.wordles[d.id] = d.data())); });
   sub('duels', query(collection(db, 'duels'), where('date', '==', today())), (s) => { S.duels = {}; s.forEach((d) => (S.duels[d.id] = { ...d.data(), id: d.id })); });
   sub('avatars', collection(db, 'avatars'), (s) => { S.avatars = {}; s.forEach((d) => (S.avatars[d.id] = d.data())); });
+  sub('rooms', collection(db, 'rooms'), (s) => { S.rooms = {}; s.forEach((d) => (S.rooms[d.id] = d.data())); });
   sub('art', collection(db, 'art'), (s) => { S.art = {}; s.forEach((d) => (S.art[d.id] = { ...d.data(), id: d.id })); });
   sub('live', query(collection(db, 'live'), where('date', '==', today())), (s) => { S.live = {}; s.forEach((d) => (S.live[d.id] = { ...d.data(), id: d.id })); onLiveUpdate(); });
   sub('spend', collection(db, 'spend'), (s) => { S.spends = []; s.forEach((d) => S.spends.push(d.data())); });
@@ -130,20 +132,21 @@ function onErr(e) {
 }
 const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop', 'workshop', 'album']);
 function onData() {
-  if (S.loaded.size < 12) return;
+  if (S.loaded.size < 13) return;
   if (S.uid && !S.users[S.uid]?.ntfy && !S.ntfyAsked) { S.ntfyAsked = true; S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
-  onDuelsUpdate(); ensureExclusives();
+  onDuelsUpdate(); ensureExclusives(); ensureRoomBonus();
   if (S.view === 'loading') {
     if (!surveyDone(S.uid)) startSurvey(); else S.view = 'home';
     render(); return;
   }
+  if (S.view === 'room' || S.view === 'roomshop') return roomRefresh();
   if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh) || (S.view === 'duel' && !isPlaying()) || (S.view === 'art' && !isEditing() && document.activeElement?.tagName !== 'INPUT')) render();
 }
 
 // ---------- рендер ----------
 function render() {
   if (S.denied) return renderDenied();
-  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia, coop: renderCoop }[S.view];
+  const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia, coop: renderCoop, room: renderRoom, roomshop: renderRoomShop }[S.view];
   (v || renderHome)();
   window.scrollTo?.(0, 0);
 }
@@ -270,6 +273,7 @@ function renderHome() {
       ${tile('duels', '⚔️', 'Дуелі наживо', duelsUnlocked().ok ? dailyDuels(today()).length + ' нові сьогодні' : '🔒 з рангу «Муркотун»', duelsUnlocked().ok ? '' : 'dim')}
       ${tile('avatar', '🐱', 'Мій котик', avOf(me).name ? esc(avOf(me).name) : 'вигляд і гардероб')}
       ${tile('shop', '🛍', 'Магазин', `${wallet()} 🪙`)}
+      ${((t) => tile('room', '🏠', 'Моя кімната', esc(t.t), 'wide' + (t.hot ? ' hot' : '')))(roomTile())}
       ${tile('workshop', '🎨', 'Творча майстерня', !wsUnlocked().ok ? '🔒 з рангу «Котик-романтик»' : pendingArt() ? `👉 чекає тебе: ${pendingArt()}` : '7 творчих ігор + альбом', !wsUnlocked().ok ? 'dim' : pendingArt() ? 'hot' : '')}
       ${tile('trivia', '🧹', 'Робота задарма', 'питання за 🪙 · 💎 +50')}
       ${tile('coop', '🧩', 'Дві половинки — 3D-квест удвох', coopUnlocked().ok ? 'Шкатулка · Маяк · Сад — легендарні нагороди' : '🔒 з рангу «Королівська висловуха»', coopUnlocked().ok ? 'wide' : 'wide dim')}
@@ -598,10 +602,10 @@ function renderCoop() {
 // ---------- дії ----------
 function notify(uid, title, msg) { return sendPush(S.users[uid]?.ntfy, title, msg); }
 const actions = {
-  ...duelActions, ...shopActions, ...workshopActions, ...triviaActions,
+  ...duelActions, ...shopActions, ...workshopActions, ...triviaActions, ...roomActions,
   copyTopic: () => { const t = S.users[S.uid]?.ntfy || ''; navigator.clipboard?.writeText(t).then(() => toast('Скопійовано ✓'), () => toast(t)); },
   testPush: () => { notify(S.uid, '🐱 Мур!', 'Сповіщення працюють 💕'); toast('Надіслано — перевір ntfy'); },
-  go: (el) => { const to = el.dataset.to; if (S.view === 'coop' && to !== 'coop') coopMod?.leaveCoop(); recCancel(); resetWorkshop(); S.openCh = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
+  go: (el) => { const to = el.dataset.to; if (S.view === 'coop' && to !== 'coop') coopMod?.leaveCoop(); recCancel(); resetWorkshop(); S.openCh = null; S.roomEdit = null; S.roomUnbox = null; S.roomPick = false; if (to === 'room') S.roomOf = null; if (to === 'quiz') openQuiz(); else { S.view = to; if (to === 'wordle') S.wCur = ''; } render(); },
   logout: () => signOut(auth),
   authMode: () => { S.authMode = S.authMode === 'login' ? 'register' : 'login'; S.authErr = ''; renderAuth(); },
   pick: (el) => {
@@ -633,5 +637,5 @@ app.addEventListener('click', (e) => {
 });
 
 // ---------- спільні функції для модулів дуелей і магазину ----------
-const api = { S, db, fb, doc, getDoc, setDoc, updateDoc, arrayUnion, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
-initDuels(api); initShop(api); initWorkshop(api); initTrivia(api);
+const api = { S, db, fb, doc, getDoc, setDoc, updateDoc, arrayUnion, increment, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+initDuels(api); initShop(api); initWorkshop(api); initTrivia(api); initRoom(api);

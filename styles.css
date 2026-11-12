@@ -335,3 +335,71 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 .final-opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
 .final-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 2px solid #ffd3e3; border-radius: 14px; background: #fff; padding: 6px 4px; font: 700 12px Nunito, system-ui, sans-serif; color: #5b2a4a; }
 .final-opt.sel { border-color: #ff5c9a; box-shadow: 0 0 0 3px #ffd3e3; }
+
+/* ===== Кімната котика ===== */
+.room-wrap { overflow-x: auto; overflow-y: hidden; border-radius: 20px; margin: 8px 0 4px; box-shadow: 0 8px 24px #d4588a2a; -webkit-overflow-scrolling: touch; }
+.room { position: relative; overflow: hidden; border-radius: 20px; background: #fff; }
+.r-paper, .r-floor, .r-base { position: absolute; left: 0; right: 0; }
+.r-floor { bottom: 0; }
+.r-floor::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #0000002e, #0000 45%); pointer-events: none; }
+.r-base { background: #fff; box-shadow: 0 2px 4px #0000002a; z-index: 1; }
+.r-it { position: absolute; z-index: 3; }
+.r-it svg { display: block; overflow: visible; }
+.r-it.wall { z-index: 2; } .r-it.rug { z-index: 2; }
+.r-it.flip svg { transform: scaleX(-1); }
+.room.edit .r-it { cursor: grab; touch-action: none; }
+.room.edit .r-it.sel { z-index: 5; }
+.room.edit .r-it.sel { outline: 2px dashed var(--pink); outline-offset: 2px; border-radius: 6px; background: #ff5c9a14; }
+.room.edit .r-cat { opacity: .35; pointer-events: none; }
+.r-cat { position: absolute; left: 0; height: 112px; z-index: 4; transform-origin: 0 100%; }
+.r-cat .cat-stage { height: 112px; margin: 0; }
+.r-cat .cat-stage::after { display: none; }
+.r-gift { position: absolute; z-index: 5; border: 0; background: none; padding: 0; line-height: 1; cursor: pointer; animation: rGift 1.2s ease-in-out infinite; filter: drop-shadow(0 3px 4px #0003); }
+@keyframes rGift { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-6px) rotate(-6deg); } 60% { transform: translateY(0) rotate(5deg); } }
+.r-btns { justify-content: center; }
+.r-note p { margin: 6px 0 0; font-size: 16px; }
+.r-levels > div { padding: 6px 0; border-bottom: 1px solid #ffe3ee; font-size: 14px; } .r-levels > div:last-child { border: 0; }
+.r-levels > div:not(.ok) { opacity: .6; }
+.r-set .r-set-h { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; }
+.r-set .bar { margin: 6px 0; }
+.r-set.done { box-shadow: 0 0 0 2px #ffd34d, 0 6px 24px #d4588a1f; }
+.r-inv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.r-inv-it { border: 2px solid #ffd3e3; background: #fff; border-radius: 14px; padding: 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 700 12px 'Nunito', system-ui, sans-serif; color: var(--text); }
+.r-inv-it.off { opacity: .5; }
+.r-prev { width: 70px; height: 56px; } .r-prev.big { width: 96px; height: 86px; }
+.r-sw { width: 96px; height: 70px; border-radius: 10px; box-shadow: inset 0 0 0 2px #0000000f; }
+.r-dot { width: 16px; height: 16px; border-radius: 50%; display: inline-block; border: 1px solid #0002; }
+.chip.off { opacity: .5; }
+.r-tools .row3 { justify-content: center; }
+/* розпакування подарунка */
+.unbox { position: fixed; inset: 0; z-index: 50; background: #4a2c3a66; display: grid; place-items: center; padding: 20px; }
+.unbox .card { width: min(340px, 100%); }
+.ub-box { font-size: 86px; line-height: 1; animation: ubShake .9s ease-in-out infinite; }
+@keyframes ubShake { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-10deg) scale(1.05); } 40% { transform: rotate(9deg); } 60% { transform: rotate(-6deg) scale(1.03); } 80% { transform: rotate(4deg); } }
+.unbox.open .ub-item { animation: ubPop .6s cubic-bezier(.3, 1.6, .5, 1) both; }
+@keyframes ubPop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } }
+/* анімації предметів і вид з вікна (не вимикаються «Зменшенням руху» — на iPhone інакше все завмирає) */
+.rv-fall { animation: rvFall 6s linear infinite; }
+@keyframes rvFall { from { transform: translate(0, 0); } to { transform: translate(8px, 140px); } }
+.rf-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: rfFlame .45s ease-in-out infinite alternate; }
+@keyframes rfFlame { to { transform: scale(.92, 1.14); } }
+.rf-twinkle { animation: rfTw 1.4s ease-in-out infinite alternate; }
+@keyframes rfTw { to { opacity: .35; } }
+.rf-swing { transform-box: fill-box; transform-origin: 50% 0; animation: rfSw 3s ease-in-out infinite alternate; }
+@keyframes rfSw { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+/* живі ефекти наборів */
+.r-fx { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+.r-fx i { position: absolute; display: block; }
+.rfx-cl i { bottom: 8%; width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(#fff3c4, #ffc46b88 60%, transparent 70%); animation: fxRise 7s linear infinite; }
+@keyframes fxRise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .9; } 100% { transform: translateY(-190px) translateX(14px); opacity: 0; } }
+.rfx-pk i { top: -12px; width: 10px; height: 7px; border-radius: 70% 0; background: #ffb3cf; animation: fxFall 6s linear infinite; }
+@keyframes fxFall { from { transform: translate(0, 0) rotate(0); } to { transform: translate(30px, 330px) rotate(300deg); } }
+.rfx-sc i { bottom: 10%; width: 4px; height: 4px; border-radius: 50%; background: #ffb347; box-shadow: 0 0 6px #ff7a2e; animation: fxRise 3s ease-out infinite; }
+.rfx-st i { top: 8%; width: 46px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, #fff, transparent); opacity: 0; animation: fxShoot 5s ease-in infinite; }
+.rfx-st i:nth-child(even) { top: 22%; animation-duration: 7s; }
+@keyframes fxShoot { 0%, 70% { transform: translate(0, 0) rotate(-20deg); opacity: 0; } 75% { opacity: 1; } 100% { transform: translate(-150px, 56px) rotate(-20deg); opacity: 0; } }
+.rfx-ro i { top: 30%; width: 7px; height: 7px; background: #ffd34d; transform: rotate(45deg); box-shadow: 0 0 8px #ffd34d; animation: fxGold 2.2s ease-in-out infinite; }
+.rfx-ro i:nth-child(3n) { top: 12%; } .rfx-ro i:nth-child(3n+1) { top: 55%; }
+@keyframes fxGold { 0%, 100% { opacity: 0; transform: rotate(45deg) scale(.4); } 50% { opacity: 1; transform: rotate(45deg) scale(1); } }
+/* котик у кімнаті: підписи до дій */
+.kitty.sleep .bubble, .kitty.stand .bubble, .kitty.scratch .bubble, .kitty.eat .bubble, .kitty.play .bubble, .kitty.sit .bubble { opacity: 1; transform: none; }

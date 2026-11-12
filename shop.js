@@ -19,7 +19,7 @@ export function seasonWins(uid = me()) {
   const { byWeek } = A.totals(), p = A.pUid(), w = A.week();
   return Object.keys(byWeek).filter((k) => k < w && (byWeek[k][uid] || 0) > (p ? byWeek[k][p] || 0 : 0)).length;
 }
-const buyable = () => Object.entries(ITEMS).filter(([, it]) => !it.wins && !it.coop && it.price > 0).map(([id]) => id);
+const buyable = () => Object.entries(ITEMS).filter(([, it]) => !it.wins && !it.coop && !it.room && it.price > 0).map(([id]) => id);
 export function vitrine() { return shuffle(buyable(), 'vit' + A.week()).slice(0, 6); }
 const priceOf = (id) => (vitrine().includes(id) ? Math.round((ITEMS[id].price * 0.7) / 10) * 10 : ITEMS[id].price);
 
@@ -59,12 +59,12 @@ export function renderShop() {
     const it = ITEMS[id], has = av.owned.includes(id), pr = priceOf(id), sale = pr !== it.price, r = rarity(it);
     const tryAv = { ...av, owned: [...av.owned, id], eq: { ...av.eq, [it.slot]: id } };
     const prev = it.slot === 'title' ? `<div class="title-badge">${A.esc(it.name)}</div>` : portrait(tryAv, 92);
-    const btns = it.coop ? `<span class="muted small">${has ? '✓ Твій' : `За квест «Дві половинки»: ${A.esc(it.coop)}`}</span>` : it.wins ? `<span class="muted small">${has ? '✓ Твій' : `За ${it.wins} перемог${it.wins > 1 ? 'и' : 'у'} в сезонах (${wins}/${it.wins})`}</span>`
+    const btns = it.coop ? `<span class="muted small">${has ? '✓ Твій' : `За квест «Дві половинки»: ${A.esc(it.coop)}`}</span>` : it.room ? `<span class="muted small">${has ? '✓ Твій' : `За ${A.esc(it.room)} у кімнаті`}</span>` : it.wins ? `<span class="muted small">${has ? '✓ Твій' : `За ${it.wins} перемог${it.wins > 1 ? 'и' : 'у'} в сезонах (${wins}/${it.wins})`}</span>`
       : `${has ? '<span class="own">✓ Є</span>' : `<button class="btn sm ${bal < pr ? 'off' : ''}" data-a="buy" data-id="${id}">Купити</button>`}${p ? `<button class="btn ghost sm ${bal < pr ? 'off' : ''}" data-a="gift" data-id="${id}">🎁</button>` : ''}`;
     return `<div class="shop-c ${r.c}"><div class="sc-prev">${prev}</div><b>${A.esc(it.name)}</b><div class="muted small">${r.n}</div>
-      <div class="price">${it.coop ? '🧩' : it.wins ? '🏆' : `${sale ? `<s>${it.price}</s> ` : ''}<b>${pr}</b> 🪙`}</div><div class="sc-btn">${btns}</div></div>`;
+      <div class="price">${it.coop ? '🧩' : it.room ? '🛋' : it.wins ? '🏆' : `${sale ? `<s>${it.price}</s> ` : ''}<b>${pr}</b> 🪙`}</div><div class="sc-btn">${btns}</div></div>`;
   };
-  const ids = cat === 'vit' ? vitrine() : cat === 'ex' ? Object.keys(ITEMS).filter((id) => ITEMS[id].wins || ITEMS[id].coop) : Object.keys(ITEMS).filter((id) => ITEMS[id].slot === cat && !ITEMS[id].wins && !ITEMS[id].coop);
+  const ids = cat === 'vit' ? vitrine() : cat === 'ex' ? Object.keys(ITEMS).filter((id) => ITEMS[id].wins || ITEMS[id].coop || ITEMS[id].room) : Object.keys(ITEMS).filter((id) => ITEMS[id].slot === cat && !ITEMS[id].wins && !ITEMS[id].coop && !ITEMS[id].room);
   const tabs = [['vit', '🔥 Вітрина −30%'], ...Object.entries(SLOTS), ['ex', '🏆 Ексклюзиви']];
   A.app.innerHTML = `<div class="page">${A.top('Магазин')}
     <div class="card wallet"><span>Гаманець</span><b>${bal} 🪙</b><span class="muted small">Покупки не зменшують ранг і бали сезону</span></div>
