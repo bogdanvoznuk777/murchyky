@@ -12,7 +12,7 @@ const avRef = (uid) => A.doc(A.db, 'avatars', uid);
 // ---------- гаманець ----------
 export function wallet(uid = me()) {
   const earned = A.totals().all[uid] || 0;
-  const spent = S().spends.filter((s) => s.uid === uid).reduce((a, s) => a + s.price, 0);
+  const spent = A.spentOf(uid);
   return earned - spent;
 }
 export function seasonWins(uid = me()) {

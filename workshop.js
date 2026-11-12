@@ -118,7 +118,7 @@ export const renderWorkshop = guard(function () {
   const list = Object.values(S().art).filter((d) => d.status !== 'done').sort((a, b) => b.at - a.at);
   const lv = Object.values(S().live).filter((l) => l.status !== 'done' && l.status !== 'cancelled');
   A.app.innerHTML = `<div class="page">${A.top('Творча майстерня')}
-    <button class="alb-btn" data-a="go" data-to="album">📖 Наш альбом <span>${Object.values(S().art).filter((d) => d.status === 'done').length}</span></button>
+    <button class="alb-btn" data-a="go" data-to="album">📖 Наш альбом ${S().albumLoaded ? `<span>${Object.values(S().art).filter((d) => d.status === 'done').length}</span>` : ''}</button>
     ${list.length || lv.length ? `<h3 class="sec">Активне</h3>${lv.map((l) => `<button class="hist-row ${l.guesser === me() && l.status === 'invited' ? 'hot' : ''}" data-a="liveOpen" data-id="${l.id}"><span>✏️ Малюй і вгадуй наживо</span><span>${l.guesser === me() && l.status === 'invited' ? '👉 приєднатися!' : l.status === 'invited' ? 'чекаємо партнера' : 'триває'}</span></button>`).join('')}
       ${list.map((d) => `<button class="hist-row ${myTurn(d) ? 'hot' : ''}" data-a="artOpen" data-id="${d.id}"><span>${MODES[d.type].icon} ${esc(MODES[d.type].name)}</span><span>${esc(artStatus(d))}</span></button>`).join('')}` : ''}
     <h3 class="sec">Створити</h3>
@@ -182,7 +182,7 @@ async function artSend() {
 
 // ---------- відкрите завдання ----------
 export const renderArt = guard(function () {
-  const d = S().art[S().artId]; if (!d) { A.app.innerHTML = `<div class="page">${A.top('Майстерня')}<p>Не знайдено.</p></div>`; return; }
+  const d = S().art[S().artId]; if (!d) { A.fetchArt(S().artId); A.app.innerHTML = `<div class="page">${A.top('Майстерня')}<p class="muted center-t">Завантаження…</p></div>`; return; }
   const M = MODES[d.type], mine = d.by === me(), p = others(d), pn = esc(A.nameOf(p));
   const page = (html) => { A.app.innerHTML = `<div class="page">${A.top(`${M.icon} ${M.name}`)}${html}</div>`; };
   if (d.status === 'done') return page(albumDetailHTML(d));
@@ -320,10 +320,11 @@ export function onLiveUpdate() { if (S().view === 'live' && wsUnlocked().ok) ren
 // ---------- альбом ----------
 const FILTERS = [['all', 'Усе'], ...ORDER.map((k) => [k, MODES[k].icon])];
 export const renderAlbum = guard(function () {
+  A.ensureAlbum();
   const f = S().albF || 'all', list = Object.values(S().art).filter((d) => d.status === 'done' && (f === 'all' || d.type === f)).sort((a, b) => (b.doneAt || b.at) - (a.doneAt || a.at));
   A.app.innerHTML = `<div class="page">${A.top('📖 Наш альбом')}
     <div class="tabs scroll">${FILTERS.map(([k, n]) => `<button class="${f === k ? 'sel' : ''}" data-a="albF" data-f="${k}">${n}</button>`).join('')}</div>
-    ${list.length ? `<div class="alb-grid">${list.map((d) => `<button class="alb-it" data-a="artOpen" data-id="${d.id}">${d.thumb ? `<img src="${d.thumb}">` : d.type === 'emoji' ? `<div class="alb-emo">${esc(d.emoji)}</div>` : `<div class="alb-emo">${MODES[d.type].icon}</div>`}
+    ${!S().albumLoaded ? '<p class="muted center-t">Завантаження…</p>' : list.length ? `<div class="alb-grid">${list.map((d) => `<button class="alb-it" data-a="artOpen" data-id="${d.id}">${d.thumb ? `<img src="${d.thumb}">` : d.type === 'emoji' ? `<div class="alb-emo">${esc(d.emoji)}</div>` : `<div class="alb-emo">${MODES[d.type].icon}</div>`}
       <span class="alb-like">${Object.keys(d.likes || {}).length ? '❤ ' + Object.keys(d.likes).length : ''}</span></button>`).join('')}</div>` : '<div class="card center"><p>Тут з\'являтимуться ваші малюнки, фото й пісні 💕</p></div>'}</div>`;
 });
 function albumDetailHTML(d) {

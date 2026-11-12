@@ -354,7 +354,7 @@ async function finish(s) {
   const i = ALL_LEVELS.findIndex((l) => l.id === lvl.id), next = ALL_LEVELS[i + 1];
   view = 'result'; N.setPresence({ v: 'map', voice: N.voice.on });
   A.app.innerHTML = `<div class="page coop">${A.top('Дві половинки')}
-    <div class="card center res"><div class="res-big">🧺💕</div><b class="big">Рівень ${lvl.id} пройдено разом!</b>
+    <div class="card center res"><i data-celebrate="coop_${lvl.id}_${Date.now()}" hidden></i><div class="res-big">🧺💕</div><b class="big">Рівень ${lvl.id} пройдено разом!</b>
       <p>⏱ ${r.t} с · падінь: ${r.falls || 0} ${r.fish ? '· 🐟 рибку знайдено!' : '· 🐟 рибку пропущено'}</p>
       ${first ? `<p class="plus">+${LEVEL_COINS} 🪙 кожному</p>` : '<p class="muted small">Повторне проходження — монети лише за перше. Але рекорд оновлюється!</p>'}
       ${best === r.t ? '<p>🏆 Ваш рекорд на цьому рівні!</p>' : `<p class="muted small">Рекорд: ${best} с</p>`}

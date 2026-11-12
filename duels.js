@@ -196,7 +196,7 @@ function resultHTML(d, g, p, pn) {
       <div><div class="muted small">${pn}</div><b>${b.void ? 'анульовано' : g.fmt(b.score)}</b>${b.word ? `<div>«${A.esc(b.word)}»</div>` : ''}
       ${g.challengeable && b.word && !b.void ? `<button class="link small" data-a="dVoid" data-id="${d.id}">Такого слова немає</button>` : ''}</div></div>`;
   } else if (d.state?.note) det = `<p class="muted small">${A.esc(d.state.note)}</p>`;
-  return `<div class="card center"><h2>${title}</h2>${det}<p>Тобі: <b>+${my}</b> ${repIndex(d, me()) ? '<span class="muted small">(повторна гра — 1/3)</span>' : ''}</p>
+  return `<div class="card center">${w === me() ? `<i data-celebrate="duel_${d.id}" hidden></i>` : ''}<h2>${title}</h2>${det}<p>Тобі: <b>+${my}</b> ${repIndex(d, me()) ? '<span class="muted small">(повторна гра — 1/3)</span>' : ''}</p>
     <div class="row"><button class="btn ghost" data-a="go" data-to="duels">До дуелей</button><button class="btn" data-a="dInvite" data-g="${d.game}">Реванш ⚔️</button></div></div>`;
 }
 

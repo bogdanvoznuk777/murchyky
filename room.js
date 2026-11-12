@@ -39,6 +39,7 @@ function sceneHTML(uid, R, lvl, edit) {
   const items = list.map((e, ix) => ({ e, ix, it: RITEMS[e.i] })).sort((a, b) => order(a.e) - order(b.e) || a.ix - b.ix);
   const box = (it, x) => { const top = it.kind === 'wall' ? it.y : it.kind === 'rug' ? FLOOR_Y + 8 - it.h : FLOOR_Y - it.h; return `left:${(x * k).toFixed(1)}px;top:${(top * k).toFixed(1)}px;width:${(it.w * k).toFixed(1)}px;height:${(it.h * k).toFixed(1)}px`; };
   const html = items.map(({ e, ix, it }) => {
+    if (it.photo && e.p && !S().art?.[e.p]) A.fetchArt(e.p); // фото для рамки — один документ, без усього альбому
     const ph2 = it.photo && e.p ? S().art?.[e.p]?.thumb : null;
     return `<div class="r-it ${it.kind}${e.f ? ' flip' : ''}${edit && edit.sel === ix ? ' sel' : ''}" data-ix="${ix}" style="${box(it, e.x)}">${itemSVG(e.i, { view: (edit || R).view, phase: ph, season: se, photo: ph2 })}</div>`;
   }).join('');
@@ -154,6 +155,8 @@ function editPanel(R, lvl, edit) {
     <div class="card"><b>Шпалери</b><div class="chips">${chips('paper', 'paper')}</div><b>Підлога</b><div class="chips">${chips('flooring', 'flooring')}</div><b>Вид з вікна</b><div class="chips">${views}</div><p class="muted small">Вид змінюється сам: ранок, день, вечір, ніч (за Києвом) і пора року.</p></div>`;
 }
 function photoPicker() {
+  A.ensureAlbum();
+  if (!S().albumLoaded) return '<div class="card"><b>🖼 Обери фото з «Нашого альбому»</b><p class="muted small">Завантаження…</p></div>';
   const list = Object.values(S().art || {}).filter((d) => d.status === 'done' && d.thumb).sort((a, b) => (b.doneAt || b.at) - (a.doneAt || a.at));
   return `<div class="card"><b>🖼 Обери фото з «Нашого альбому»</b>${list.length ? `<div class="alb-grid">${list.map((d) => `<button class="alb-it" data-a="roomPhoto" data-id="${d.id}"><img src="${d.thumb}"></button>`).join('')}</div>` : '<p class="muted small">Тут будуть ваші малюнки й фото з «Творчої майстерні» 🎨</p>'}<button class="link" data-a="roomPhoto" data-id="">Без фото</button></div>`;
 }
@@ -244,7 +247,7 @@ export function ensureRoomBonus() {
   if (!add.length) return;
   bonusBusy = true;
   A.setDoc(A.doc(A.db, 'avatars', uid), { owned: A.arrayUnion(...add) }, { merge: true })
-    .then(() => A.toast(`🎉 Набір зібрано! Котик отримав: ${add.map((id) => `«${ITEMS[id].name}»`).join(', ')}`))
+    .then(() => { A.confetti(); A.toast(`🎉 Набір зібрано! Котик отримав: ${add.map((id) => `«${ITEMS[id].name}»`).join(', ')}`); })
     .catch((e) => console.error(e)).finally(() => (bonusBusy = false));
 }
 // Статус для плитки на головній
@@ -257,7 +260,7 @@ export function roomTile() {
 // Оновлення екрана, коли прийшли нові дані (не заважаємо облаштуванню і набору тексту)
 export function roomRefresh() {
   if (S().view === 'roomshop') { const y = window.scrollY; renderRoomShop(); window.scrollTo(0, y); return; }
-  if (S().roomEdit || S().roomUnbox || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+  if ((S().roomEdit && !S().roomPick) || S().roomUnbox || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
   S().roomKeep = true; renderRoom(); S().roomKeep = false;
 }
 // Нова річ стає туди, де вона найменше перекриває інші речі свого шару (стіна / підлога), ближче до видимого центру

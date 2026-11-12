@@ -412,3 +412,34 @@ input.bad { border-color: #e53950; animation: shake .3s; } @keyframes shake { 25
 @keyframes fxGold { 0%, 100% { opacity: 0; transform: rotate(45deg) scale(.4); } 50% { opacity: 1; transform: rotate(45deg) scale(1); } }
 /* котик у кімнаті: підписи до дій */
 .kitty.sleep .bubble, .kitty.stand .bubble, .kitty.scratch .bubble, .kitty.eat .bubble, .kitty.play .bubble, .kitty.sit .bubble { opacity: 1; transform: none; }
+
+/* ===== Живий інтерфейс ===== */
+/* перехід між екранами: лише коли змінюється екран (не при кожному оновленні даних) */
+#app.vt > .page, #app.vt > .center, #app.vt > .auth { animation: pgIn .26s cubic-bezier(.2, .8, .3, 1); }
+@keyframes pgIn { from { opacity: 0; transform: translateY(12px); } }
+@media (prefers-reduced-motion: reduce) { #app.vt > .page, #app.vt > .center, #app.vt > .auth { animation-duration: .01s; } }
+.tile, .btn, .chip, .tabs button, .back { transition: transform .12s ease; }
+.tile:active, .chip:active, .tabs button:active, .back:active { transform: scale(.95); }
+/* конфеті */
+.fx-conf { position: fixed; inset: 0; pointer-events: none; z-index: 90; overflow: hidden; }
+.fx-conf i { position: absolute; bottom: -12px; width: 8px; height: 12px; border-radius: 2px; opacity: 0; animation: fxConf var(--d) cubic-bezier(.2, .7, .4, 1) forwards; }
+.fx-conf i.h { width: auto; height: auto; background: none; font-size: 16px; font-style: normal; }
+@keyframes fxConf {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  45% { opacity: 1; transform: translate(calc(var(--dx) * .6), var(--up)) rotate(calc(var(--r) * .5)); }
+  100% { opacity: 0; transform: translate(var(--dx), 10vh) rotate(var(--r)); }
+}
+/* урочиста сцена */
+.fx-scene { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 20px; background: #4a2c3a8c; animation: fxFade .25s ease; }
+.fx-scene.out { opacity: 0; transition: opacity .25s; }
+@keyframes fxFade { from { opacity: 0; } }
+.fx-card { position: relative; width: min(340px, 100%); background: linear-gradient(180deg, #fff, #fff2f7); border-radius: 28px; padding: 26px 20px 20px; text-align: center; box-shadow: 0 20px 60px #4a2c3a55; overflow: hidden; animation: fxPop .55s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes fxPop { from { transform: scale(.6); opacity: 0; } }
+.fx-rays { position: absolute; left: 50%; top: 70px; width: 520px; height: 520px; margin: -260px 0 0 -260px; background: repeating-conic-gradient(#ffd34d33 0 10deg, transparent 10deg 20deg); border-radius: 50%; animation: fxSpin 14s linear infinite; pointer-events: none; }
+@keyframes fxSpin { to { transform: rotate(360deg); } }
+.fx-icon { position: relative; font-size: 74px; line-height: 1; animation: fxBounce 1.6s ease-in-out infinite; }
+@keyframes fxBounce { 50% { transform: translateY(-8px) scale(1.06); } }
+.fx-card h2 { position: relative; margin: 10px 0 4px; color: var(--deep); font-size: 24px; }
+.fx-card p { position: relative; margin: 6px 0 14px; }
+.fx-art { position: relative; display: flex; justify-content: center; margin: 4px 0; }
+.fx-card .btn { position: relative; min-width: 160px; }

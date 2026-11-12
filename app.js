@@ -1,7 +1,7 @@
 // ===== Мурчики: сезон кохання — основна логіка =====
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, query, where, arrayUnion, increment } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, getDocs, setDoc, updateDoc, onSnapshot, collection, query, where, arrayUnion, increment } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 import { mountCat } from './cat.js';
 import { initDuels, renderDuels, renderDuel, duelActions, onDuelsUpdate, isPlaying, unlocked as duelsUnlocked, dailyDuels } from './duels.js';
@@ -10,21 +10,26 @@ import { portrait } from './avatar.js';
 import { sendPush, newTopic } from './notify.js';
 import { initWorkshop, renderWorkshop, renderArtNew, renderArt, renderLive, renderAlbum, workshopActions, onLiveUpdate, isEditing, pendingArt, resetWorkshop, wsUnlocked } from './workshop.js';
 import { initTrivia, renderTrivia, triviaActions, DAY_CAP } from './trivia.js';
+import { confetti, scene, watch } from './fx.js';
 import { initRoom, renderRoom, renderRoomShop, roomActions, ensureRoomBonus, roomTile, roomRefresh } from './room.js';
 import { SURVEY, RANKS, PTS } from './data.js';
-import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor } from './util.js';
+import { kyivDate, weekId, weekLabel, timeLeftInWeek, wordOfDay, scoreGuess, UA_LETTERS, weekChallenges, quizQuestions, hasAnswer, autoGrade, rankFor, dayNum, fromDayNum, dow } from './util.js';
 
 const app = document.getElementById('app');
 const fb = initializeApp(firebaseConfig);
 const auth = getAuth(fb);
-const db = getFirestore(fb);
+// Локальний кеш Firestore у телефоні: гра показує дані одразу (навіть без інтернету), а сервер лише доповнює зміни
+const db = (() => { try { return initializeFirestore(fb, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); } catch (e) { console.warn('cache', e); return getFirestore(fb); } })();
 
 const S = {
-  uid: null, registering: false, art: {}, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
+  uid: null, registering: false, art: {}, artLive: {}, artAlbum: {}, artExtra: {}, albumOn: false, albumLoaded: false, stats: null, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {},
   loaded: new Set(), view: 'loading', denied: false, busy: false,
   draft: {}, sIdx: 0, quiz: null, qIdx: 0, qGuess: {}, wCur: '', openCh: null, authMode: 'login', authErr: '',
 };
 let unsubs = [];
+const SAFE_RELOAD = new Set(['home', 'loading', 'auth']); // де можна перезавантажити гру для оновлення
+let swReload = false;
+let lastView = null, vtT = 0;
 const SURVEY_BY_ID = Object.fromEntries(SURVEY.map((q) => [q.id, q]));
 
 // ---------- допоміжне ----------
@@ -59,13 +64,67 @@ function award(id, uid, amount, reason) {
   if (!uid || !(amount > 0)) return Promise.resolve();
   return setDoc(doc(db, 'points', id), { uid, amount, reason, date: today(), week: week(), ts: Date.now() });
 }
+// Бали: минулі тижні — з підсумків (stats/weeks), поточний — наживо з points
 function totals() {
-  const all = {}, byWeek = {};
-  for (const p of S.points) {
-    all[p.uid] = (all[p.uid] || 0) + p.amount;
-    (byWeek[p.week] ||= {})[p.uid] = (byWeek[p.week][p.uid] || 0) + p.amount;
-  }
+  const all = {}, byWeek = {}, cur = week();
+  const add = (w, uid, n) => { all[uid] = (all[uid] || 0) + n; (byWeek[w] ||= {})[uid] = (byWeek[w][uid] || 0) + n; };
+  for (const [w, x] of Object.entries(S.stats?.w || {})) if (w < cur) for (const [uid, n] of Object.entries(x.pts || {})) add(w, uid, n);
+  for (const p of S.points) add(p.week || cur, p.uid, p.amount || 0);
   return { all, byWeek };
+}
+// Витрачено в магазинах: минулі тижні — з підсумків, поточний — наживо
+function spentOf(uid) {
+  const cur = week(); let s = 0;
+  for (const [w, x] of Object.entries(S.stats?.w || {})) if (w < cur) s += x.spent?.[uid] || 0;
+  for (const p of S.spends) if (p.uid === uid) s += p.price || 0;
+  return s;
+}
+
+// ---------- підсумки минулих тижнів ----------
+// Щоб не читати всю історію при кожному відкритті, суми кожного завершеного тижня записуються один раз у stats/weeks.
+// Обчислюються з самих записів (а не додаванням), тож повторний підрахунок дає той самий результат.
+const statsRef = () => doc(db, 'stats', 'weeks');
+const weekOfDoc = (d) => d.week || (d.date ? weekId(d.date) : d.ts ? weekId(kyivDate(new Date(d.ts))) : null);
+let closing = null;
+function closeWeeks() {
+  if (closing) return closing;
+  const st = S.stats || {}, cur = week(), prev = fromDayNum(dayNum(cur) - 7);
+  const mode = !st.closed ? 'all' : st.closed < prev ? 'range' : st.checked !== st.closed && dow(today()) >= 2 ? 'recheck' : null;
+  if (!mode) return Promise.resolve();
+  closing = (async () => {
+    const q = (col) => mode === 'all' ? collection(db, col) : mode === 'range' ? query(collection(db, col), where('week', '>', st.closed), where('week', '<', cur)) : query(collection(db, col), where('week', '==', st.closed));
+    const [ps, ss] = await Promise.all([getDocs(q('points')), getDocs(q('spend'))]);
+    const w = {}, fix = [];
+    const put = (snap, col, key, field) => snap.forEach((d) => {
+      const x = d.data(), wk = weekOfDoc(x);
+      if (!wk || !x.uid) return;
+      if (!x.week) fix.push(setDoc(doc(db, col, d.id), { week: wk }, { merge: true }).catch(() => {})); // старі записи без поля «тиждень»
+      if (wk >= cur) return;
+      const o = ((w[wk] ||= {})[key] ||= {}); o[x.uid] = (o[x.uid] || 0) + (Number(x[field]) || 0);
+    });
+    put(ps, 'points', 'pts', 'amount'); put(ss, 'spend', 'spent', 'price');
+    if (mode === 'recheck' && !w[st.closed]) w[st.closed] = { pts: {}, spent: {} };
+    const upd = { w, closed: mode === 'recheck' ? st.closed : prev, v: 1 };
+    if (mode === 'recheck') upd.checked = st.closed;
+    // одразу локально, щоб бали не «стрибали», поки сервер підтверджує запис
+    S.stats = { ...st, ...upd, w: { ...(st.w || {}), ...w } };
+    setDoc(statsRef(), upd, { merge: true }).catch((e) => console.warn('stats', e));
+    await Promise.all(fix);
+  })().catch((e) => console.warn('closeWeeks', e)).finally(() => { closing = null; });
+  return closing;
+}
+
+// ---------- малюнки майстерні ----------
+// Наживо слухаємо лише незавершені; завершені (альбом) — лише коли їх справді треба показати
+function mergeArt() { S.art = { ...S.artExtra, ...S.artAlbum, ...S.artLive }; }
+function ensureAlbum() {
+  if (S.albumOn || !S.uid) return; S.albumOn = true;
+  unsubs.push(onSnapshot(query(collection(db, 'art'), where('status', '==', 'done')), (s) => { S.artAlbum = {}; s.forEach((d) => (S.artAlbum[d.id] = { ...d.data(), id: d.id })); S.albumLoaded = true; mergeArt(); onData(); }, onErr));
+}
+const fetching = new Set();
+function fetchArt(id) {
+  if (!id || S.art[id] || fetching.has(id)) return; fetching.add(id);
+  getDoc(doc(db, 'art', id)).then((d) => { if (d.exists()) { S.artExtra[d.id] = { ...d.data(), id: d.id }; mergeArt(); onData(); } }).catch(() => {}).finally(() => fetching.delete(id));
 }
 
 export function catSVG(size = 90, extra = '') {
@@ -94,26 +153,39 @@ onAuthStateChanged(auth, (user) => {
   start(user);
 });
 function start(user) {
-  unsubs.forEach((u) => u()); unsubs = [];
-  Object.assign(S, { uid: user?.uid || null, art: {}, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
+  unsubs.forEach((u) => u()); unsubs = []; unsubsDaily.forEach((u) => u()); unsubsDaily = [];
+  Object.assign(S, { uid: user?.uid || null, art: {}, artLive: {}, artAlbum: {}, artExtra: {}, albumOn: false, albumLoaded: false, stats: null, live: {}, duels: {}, avatars: {}, rooms: {}, spends: [], users: {}, surveys: {}, points: [], rewards: {}, quizzes: {}, wordles: {}, challenges: {}, loaded: new Set(), denied: false });
   if (!user) { S.view = 'auth'; render(); return; }
   S.view = 'loading'; render();
   setDoc(doc(db, 'users', user.uid), { nick: emailToNick(user.email), lastSeen: Date.now() }, { merge: true }).catch(onErr);
   const sub = (key, ref, fn) => unsubs.push(onSnapshot(ref, (snap) => { fn(snap); S.loaded.add(key); onData(); }, onErr));
   sub('users', collection(db, 'users'), (s) => { S.users = {}; s.forEach((d) => (S.users[d.id] = d.data())); });
   sub('surveys', collection(db, 'surveys'), (s) => { S.surveys = {}; s.forEach((d) => (S.surveys[d.id] = d.data())); });
-  sub('points', collection(db, 'points'), (s) => { S.points = []; s.forEach((d) => S.points.push(d.data())); });
+  S.subWeek = week();
+  sub('points', query(collection(db, 'points'), where('week', '==', week())), (s) => { S.points = []; s.forEach((d) => S.points.push(d.data())); S.pointsFresh = !s.metadata?.fromCache; });
+  unsubs.push(onSnapshot(statsRef(), (d) => { S.stats = d.exists() ? d.data() : {}; closeWeeks().then(() => { S.loaded.add('stats'); onData(); }); }, onErr));
   sub('rewards', collection(db, 'rewards'), (s) => { S.rewards = {}; s.forEach((d) => (S.rewards[d.id] = d.data())); });
-  sub('quiz', collection(db, 'quiz'), (s) => { S.quizzes = {}; s.forEach((d) => (S.quizzes[d.id] = { ...d.data(), id: d.id })); });
-  sub('wordle', collection(db, 'wordle'), (s) => { S.wordles = {}; s.forEach((d) => (S.wordles[d.id] = d.data())); });
-  sub('duels', query(collection(db, 'duels'), where('date', '==', today())), (s) => { S.duels = {}; s.forEach((d) => (S.duels[d.id] = { ...d.data(), id: d.id })); });
+  subDaily();
   sub('avatars', collection(db, 'avatars'), (s) => { S.avatars = {}; s.forEach((d) => (S.avatars[d.id] = d.data())); });
   sub('rooms', collection(db, 'rooms'), (s) => { S.rooms = {}; s.forEach((d) => (S.rooms[d.id] = d.data())); });
-  sub('art', collection(db, 'art'), (s) => { S.art = {}; s.forEach((d) => (S.art[d.id] = { ...d.data(), id: d.id })); });
-  sub('live', query(collection(db, 'live'), where('date', '==', today())), (s) => { S.live = {}; s.forEach((d) => (S.live[d.id] = { ...d.data(), id: d.id })); onLiveUpdate(); });
-  sub('spend', collection(db, 'spend'), (s) => { S.spends = []; s.forEach((d) => S.spends.push(d.data())); });
-  S.subWeek = week();
+  sub('art', query(collection(db, 'art'), where('status', '!=', 'done')), (s) => {
+    const was = S.artLive; S.artLive = {}; s.forEach((d) => (S.artLive[d.id] = { ...d.data(), id: d.id }));
+    for (const id of Object.keys(was)) if (!S.artLive[id] && !S.artAlbum[id]) { delete S.artExtra[id]; fetchArt(id); } // щойно завершений малюнок — дочитуємо один документ
+    mergeArt();
+  });
+  sub('spend', query(collection(db, 'spend'), where('week', '==', week())), (s) => { S.spends = []; s.forEach((d) => S.spends.push(d.data())); });
   sub('challenges', query(collection(db, 'challenges'), where('week', '==', week())), (s) => { S.challenges = {}; s.forEach((d) => (S.challenges[d.id] = { ...d.data(), id: d.id })); });
+}
+// Те, що залежить від дня (квізи за 2 тижні, слово дня, дуелі й гра наживо сьогодні), — перепідписуємо опівночі
+let unsubsDaily = [];
+function subDaily() {
+  unsubsDaily.forEach((u) => u()); unsubsDaily = [];
+  const t = today(), from = fromDayNum(dayNum(t) - 14); S.subDay = t;
+  const sub = (key, ref, fn) => unsubsDaily.push(onSnapshot(ref, (snap) => { fn(snap); S.loaded.add(key); onData(); }, onErr));
+  sub('quiz', query(collection(db, 'quiz'), where('date', '>=', from)), (s) => { S.quizzes = {}; s.forEach((d) => (S.quizzes[d.id] = { ...d.data(), id: d.id })); });
+  sub('wordle', query(collection(db, 'wordle'), where('date', '==', t)), (s) => { S.wordles = {}; s.forEach((d) => (S.wordles[d.id] = d.data())); });
+  sub('duels', query(collection(db, 'duels'), where('date', '==', t)), (s) => { S.duels = {}; s.forEach((d) => (S.duels[d.id] = { ...d.data(), id: d.id })); });
+  sub('live', query(collection(db, 'live'), where('date', '==', t)), (s) => { S.live = {}; s.forEach((d) => (S.live[d.id] = { ...d.data(), id: d.id })); onLiveUpdate(); });
 }
 // Нікнейм (будь-якою мовою) перетворюємо на технічний email для Firebase
 const NICK_RE = /^[\p{L}\d_-]{2,15}$/u;
@@ -125,14 +197,17 @@ function emailToNick(email) {
 }
 
 // Новий тиждень почався, поки гра відкрита — перезавантажуємо
-setInterval(() => { if (S.subWeek && S.subWeek !== week() && S.view !== 'survey') location.reload(); }, 60000);
+setInterval(() => {
+  if (S.subWeek && S.subWeek !== week() && S.view !== 'survey') return location.reload();
+  if (S.uid && S.subDay && S.subDay !== today()) subDaily();
+}, 60000);
 function onErr(e) {
   console.error(e);
   if (e?.code === 'permission-denied') { S.denied = true; render(); }
 }
 const LIVE = new Set(['home', 'ranks', 'grade', 'wordle', 'duels', 'avatar', 'shop', 'workshop', 'album']);
 function onData() {
-  if (S.loaded.size < 13) return;
+  if (S.loaded.size < 14) return;
   if (S.uid && !S.users[S.uid]?.ntfy && !S.ntfyAsked) { S.ntfyAsked = true; S.users[S.uid] = { ...(S.users[S.uid] || {}), ntfy: 'pending' }; setDoc(doc(db, 'users', S.uid), { ntfy: newTopic() }, { merge: true }).catch(() => {}); }
   onDuelsUpdate(); ensureExclusives(); ensureRoomBonus();
   if (S.view === 'loading') {
@@ -140,12 +215,16 @@ function onData() {
     render(); return;
   }
   if (S.view === 'room' || S.view === 'roomshop') return roomRefresh();
+  if (S.view === 'home') setTimeout(checkCelebrations, 0);
   if (LIVE.has(S.view) || (S.view === 'challenges' && !S.openCh) || (S.view === 'duel' && !isPlaying()) || (S.view === 'art' && !isEditing() && document.activeElement?.tagName !== 'INPUT')) render();
 }
 
 // ---------- рендер ----------
 function render() {
+  if (swReload && SAFE_RELOAD.has(S.view)) return location.reload(); // нова версія гри — оновлюємося, лише коли гравець не посеред гри
   if (S.denied) return renderDenied();
+  // плавна поява — лише коли змінюється екран (оновлення даних не «блимає»)
+  if (S.view !== lastView) { lastView = S.view; app.classList.remove('vt'); void app.offsetWidth; app.classList.add('vt'); clearTimeout(vtT); vtT = setTimeout(() => app.classList.remove('vt'), 300); }
   const v = { loading: renderLoading, auth: renderAuth, survey: renderSurvey, home: renderHome, quiz: renderQuiz, grade: renderGrade, wordle: renderWordle, challenges: renderChallenges, ranks: renderRanks, reward: renderReward, duels: renderDuels, duel: renderDuel, avatar: renderAvatar, shop: renderShop, workshop: renderWorkshop, artnew: renderArtNew, art: renderArt, live: renderLive, album: renderAlbum, trivia: renderTrivia, coop: renderCoop, room: renderRoom, roomshop: renderRoomShop }[S.view];
   (v || renderHome)();
   window.scrollTo?.(0, 0);
@@ -637,5 +716,26 @@ app.addEventListener('click', (e) => {
 });
 
 // ---------- спільні функції для модулів дуелей і магазину ----------
-const api = { S, db, fb, doc, getDoc, setDoc, updateDoc, arrayUnion, increment, award, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
+const api = { S, db, fb, doc, getDoc, setDoc, updateDoc, arrayUnion, increment, award, spentOf, ensureAlbum, fetchArt, confetti, addPoints, app, esc, toast, safe, render, top, catSVG, nameOf, sideOf, ans, pUid, totals, today, week, notify };
 initDuels(api); initShop(api); initWorkshop(api); initTrivia(api); initRoom(api);
+watch(app);
+
+// ---------- свята: новий ранг і перемога в минулому сезоні (показуються на головній) ----------
+const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* */ } } };
+const FX_SCENES = !navigator.webdriver || location.search.includes('fx=1'); // в автотестах сцени не заважають клікам
+function checkCelebrations() {
+  if (!FX_SCENES || S.view !== 'home' || !S.pointsFresh || !S.loaded.has('stats')) return;
+  const { all, byWeek } = totals(), me = S.uid, p = pUid(), r = rankFor(all[me] || 0), rk = 'rk_' + me, prev = ls.get(rk);
+  if (prev === null || r.min < +prev) ls.set(rk, Math.max(r.min, +prev || 0));
+  if (prev !== null && r.min > +prev) { ls.set(rk, r.min); scene({ icon: r.icon, title: 'Новий ранг!', text: `Тепер ти — <b>${esc(r.name)}</b>${r.next ? `<br><span class="muted small">Наступний: ${esc(r.next.icon + ' ' + r.next.name)} з ${r.next.min} балів</span>` : ''}`, art: portrait(avOf(me), 110) }); }
+  const pw = fromDayNum(dayNum(week()) - 7), wk = byWeek[pw] || {}, sk = 'sw_' + me;
+  if (p && (wk[me] || 0) > (wk[p] || 0) && ls.get(sk) !== pw) { ls.set(sk, pw); scene({ icon: '🏆', title: 'Перемога в сезоні!', text: `${weekLabel(pw)} · ${wk[me]} : ${wk[p] || 0}${S.rewards[pw]?.text ? `<br>🎁 Нагорода: <b>${esc(S.rewards[pw].text)}</b>` : ''}`, art: portrait(avOf(me), 110) }); }
+}
+
+// ---------- сервіс-воркер: миттєвий старт і робота без інтернету ----------
+// В автотестах вимкнено (крім тесту з ?sw=1)
+if ('serviceWorker' in navigator && (!navigator.webdriver || location.search.includes('sw=1'))) {
+  const had = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!had) return; swReload = true; if (SAFE_RELOAD.has(S.view)) location.reload(); });
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch((e) => console.warn('sw', e)));
+}
